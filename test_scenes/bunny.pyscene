@@ -1,0 +1,104 @@
+# Create triangle meshes
+#quadMesh = TriangleMesh.createQuad()
+#cubeMesh = TriangleMesh.createCube()
+#sphereMesh = TriangleMesh.createSphere()
+
+# Create triangle mesh from a file
+bunnyMesh = TriangleMesh.createFromFile('Bunny.obj')
+
+# Create triangle mesh from scratch
+#customMesh = TriangleMesh()
+#normal = float3(0, 1, 0)
+#customMesh.addVertex(float3(-10, 0, -10), normal, float2(0, 0))
+#customMesh.addVertex(float3(10, 0, -10), normal, float2(5, 0))
+#customMesh.addVertex(float3(-10, 0, 10), normal, float2(0, 5))
+#customMesh.addVertex(float3(10, 0, 10), normal, float2(5, 5))
+#customMesh.addTriangle(2, 1, 0)
+#customMesh.addTriangle(1, 2, 3)
+
+# Create materials
+#red = StandardMaterial('Red')
+#red.baseColor = float4(0.8, 0.1, 0.1, 1.0)
+#red.roughness = 0.3
+
+#green = StandardMaterial('Green')
+#green.baseColor = float4(0.1, 0.8, 0.1, 1.0)
+#green.roughness = 0.2
+#green.emissiveColor = float3(1, 1, 1)
+#green.emissiveFactor = 0.1
+
+#blue = StandardMaterial('Blue')
+#blue.baseColor = float4(0.1, 0.1, 0.8, 1.0)
+#blue.roughness = 0.3
+#blue.metallic = 1
+
+white = StandardMaterial('white')
+white.baseColor = float4(1.0, 1.0, 1.0, 1.0)
+white.roughness = 0.9
+white.metallic = 0.5
+
+#emissive = StandardMaterial('Emissive')
+#emissive.baseColor = float4(1.0, 1.0, 1.0, 1.0)
+#emissive.roughness = 0.2
+#emissive.emissiveColor = float3(1, 1, 1)
+#emissive.emissiveFactor = 20
+
+# Create material with textures
+#floor = StandardMaterial('Floor')
+#floor.loadTexture(MaterialTextureSlot.BaseColor, 'Arcade/Textures/CheckerTile_BaseColor.png')
+#floor.loadTexture(MaterialTextureSlot.Specular, 'Arcade/Textures/CheckerTile_Specular.png')
+#floor.loadTexture(MaterialTextureSlot.Normal, 'Arcade/Textures/CheckerTile_Normal.png')
+
+# Add meshes to scene builder
+#quadMeshID = sceneBuilder.addTriangleMesh(quadMesh, red)
+#cubeMeshID = sceneBuilder.addTriangleMesh(cubeMesh, emissive)
+#sphereMeshID = sceneBuilder.addTriangleMesh(sphereMesh, blue)
+bunnyMeshID = sceneBuilder.addTriangleMesh(bunnyMesh, white)
+#customMeshID = sceneBuilder.addTriangleMesh(customMesh, floor)
+
+# Add scene graph to scene builder
+#quadNodeID = sceneBuilder.addNode('Quad', Transform(scaling=2, translation=float3(-3, 1, 0), rotationEulerDeg=float3(90, 0, 0)))
+#cubeNodeID = sceneBuilder.addNode('Cube', Transform(scaling=float3(15, 0.2, 0.2), translation=float3(0, 1, -2)))
+#sphereNodeID = sceneBuilder.addNode('Sphere', Transform(scaling=1, translation=float3(3, 1, 0)))
+#customNodeID = sceneBuilder.addNode('Custom', Transform(scaling=1, rotationEulerDeg=float3(0, 45, 0)))
+bunnyNodeID = sceneBuilder.addNode('Bunny2', Transform(scaling=1, translation=float3(0.0, 0.0, 0)))
+bunnyNodeID2 = sceneBuilder.addNode('Bunny', Transform(scaling=1, translation=float3(0.2, -0.3, 0)))
+
+# Add mesh instances to scene graph
+#sceneBuilder.addMeshInstance(quadNodeID, quadMeshID)
+#sceneBuilder.addMeshInstance(cubeNodeID, cubeMeshID)
+#sceneBuilder.addMeshInstance(sphereNodeID, sphereMeshID)
+sceneBuilder.addMeshInstance(bunnyNodeID, bunnyMeshID)
+sceneBuilder.addMeshInstance(bunnyNodeID2, bunnyMeshID)
+#sceneBuilder.addMeshInstance(customNodeID, customMeshID)
+
+#sceneBuilder.importScene('arcade_with_animated_things_fewer_objects.gltf')
+
+# Adjust emissive screen
+#m = sceneBuilder.getMaterial('Cabinet')
+#m.emissiveFactor = 150.0
+
+# Add environment map
+envMap = EnvMap('20050806-03_hd.hdr')
+envMap.intensity = 1.0
+sceneBuilder.envMap = envMap
+
+# Add camera
+#camera = Camera()
+#camera.position = float3(-1.143306016921997, 1.8430896997451783, 2.4423341751098635)
+#camera.target = float3(-0.7014234066009522, 1.4863656759262086, 1.6192376613616944)
+#camera.up = float3(-0.3762371838092804, 0.6345208287239075, 0.6751033663749695)
+#camera.focalLength = 21.0
+#sceneBuilder.addCamera(camera)
+
+# Add directional light
+dirLight = DirectionalLight('Directional light')
+dirLight.intensity = float3(1.0, 0.77, 0.54)
+dirLight.direction = float3(0.6245101094245911, -0.7170000076293945, -0.3096744418144226)
+sceneBuilder.addLight(dirLight)
+
+# Add point light
+pointLight = PointLight('Point light')
+pointLight.intensity = float3(0.9, 2.4, 3.0)
+pointLight.position = float3(-2.8681933879852297, 2.0, 2.9874155521392824)
+sceneBuilder.addLight(pointLight)

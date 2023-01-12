@@ -121,11 +121,9 @@ float MeshPointGenerator::getTotalSurfaceArea(
   // NOTE: This could be easily parallelized
   for (uint32_t idxStart = indexOffset; idxStart < indexOffset + numTriangles * 3; idxStart += 3) {
     Falcor::float3 vertices[3] = {
-        vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart, use16BitIndices)].getPosition(),
-        vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart + 1, use16BitIndices)]
-            .getPosition(),
-        vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart + 2, use16BitIndices)]
-            .getPosition()};
+        vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart, use16BitIndices)].position,
+        vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart + 1, use16BitIndices)].position,
+        vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart + 2, use16BitIndices)].position};
 
     Falcor::float3 crossVec = glm::cross((vertices[0] - vertices[2]), (vertices[1] - vertices[2]));
 
@@ -179,12 +177,12 @@ std::vector<uint32_t> MeshPointGenerator::getNumSamplesPerTriangle(
     float intPart;
 
     remainderTotal += std::modf(weightedProbability, &intPart);
-    triangleSamples[tri_idx] += intPart;
-    actualSamples += intPart;
+    triangleSamples[tri_idx] += (uint32_t) intPart;
+    actualSamples += (uint32_t) intPart;
   }
 
   while (actualSamples < numSamples) {
-    uint32_t randomIdx = uniformRand(seededRandom.random_engine) * numTriangles;
+    uint32_t randomIdx = (uint32_t)(uniformRand(seededRandom.random_engine) * numTriangles);
     triangleSamples[randomIdx]++;
     actualSamples++;
   }
@@ -229,7 +227,7 @@ void MeshPointGenerator::computeSampleCounts(
 
     uint32_t numPlacedSamples = 0;
 
-    const auto& meshDesc = scene->getMesh(instance.geometryID);
+    const auto& meshDesc = scene->getMesh(Falcor::MeshID{instance.geometryID});
     std::vector<float> instanceTriangleAreas;
 
     instanceTriangleOffset += meshDesc.getTriangleCount();
@@ -258,7 +256,7 @@ void MeshPointGenerator::computeSampleCounts(
     glm::vec3 translation;
     glm::vec3 skew;
     glm::vec4 perspective;
-    glm::decompose(localToWorld, scale, rotation, translation, skew, perspective);
+    decompose(localToWorld, scale, rotation, translation, skew, perspective);
     float scaleFactor = glm::max(glm::max(scale.x, scale.y), scale.z);
 
     numSamplesPerInstance_.push_back(std::max(
@@ -267,7 +265,8 @@ void MeshPointGenerator::computeSampleCounts(
         kMinSamplesPerInstance));
 
     // Increase number of samples for double-sided materials
-    const bool isDoubleSided = scene->getMaterial(instance.materialID)->isDoubleSided();
+    const bool isDoubleSided =
+        scene->getMaterial(Falcor::MaterialID{instance.materialID})->isDoubleSided();
     if (isDoubleSided) {
       numSamplesPerInstance_.back() *= 2;
     }
@@ -330,7 +329,7 @@ void MeshPointGenerator::computeUniformSamples(
         // the things that we need, so that is more convenient
 
         const auto& instance = scene->getGeometryInstance(instanceId);
-        const auto& meshDesc = scene->getMesh(instance.geometryID);
+        const auto& meshDesc = scene->getMesh(Falcor::MeshID{instance.geometryID});
         uint32_t numTriangles = meshDesc.indexCount / 3;
 
         auto constantBuffer = pointGenRtVars_["perFrameConstantBuffer"];
@@ -367,8 +366,7 @@ void MeshPointGenerator::computeUniformSamples(
             renderContext,
             pointGenRtProgram_.get(),
             pointGenRtVars_,
-            Falcor::uint3(numTriangles, 1, 1),
-            Falcor::kEyeLeft);
+            Falcor::uint3(numTriangles, 1, 1));
 
         renderContext->flush(true);
       });
@@ -453,11 +451,12 @@ void MeshPointGenerator::generatePointsInScene(
 
         uint32_t numPlacedSamples = 0;
 
-        const auto& meshDesc = scene->getMesh(instance.geometryID);
+        const auto& meshDesc = scene->getMesh(Falcor::MeshID{instance.geometryID});
 
         float instanceDiskRadius = 0.0f;
 
-        bool isDoubleSided = scene->getMaterial(instance.materialID)->isDoubleSided();
+        bool isDoubleSided =
+            scene->getMaterial(Falcor::MaterialID{instance.materialID})->isDoubleSided();
 
         numPlacedSamples = samplePoissonDiskOnMeshOffsets(
             uniformPointData,
@@ -486,7 +485,10 @@ void MeshPointGenerator::setupGPUUniformPointGenerationPipeline(
     Falcor::Scene::SharedPtr& scene) {
   // Uniform point generation RT pipeline (using RT/ray gen shader because it already has all the
   // scene things setup...)
+ 
   Falcor::RtProgram::Desc rtPointGenProgDesc;
+
+  rtPointGenProgDesc.addShaderModules(scene->getShaderModules());
   rtPointGenProgDesc.addShaderLibrary("Samples/FalcorServer/PointGen.rt.slang");
 
   // We're not actually tracing rays.

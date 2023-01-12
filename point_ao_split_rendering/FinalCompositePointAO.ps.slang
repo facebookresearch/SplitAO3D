@@ -11,6 +11,7 @@ import PointData;
 import HashFunctionShared;
 import KDTree;
 import PointAOSamplingUtils;
+import Utils.Math.MatrixUtils;
 
 cbuffer perFrameConstantBuffer
 {
@@ -28,6 +29,12 @@ EnvMapLighting envMapLighting;
 
 Texture2D aoTex;
 Texture2D ssaoTex;
+
+VSOut vsMain(VSIn vIn)
+{
+  return defaultVS(vIn);
+}
+
 
 // Returns the point cell index for the densely packed (non-dynamic) hash table implementation
 int getPointCellIndex(uint hashBase, uint rawCellId, InstanceHashInfo ihf)
@@ -251,6 +258,12 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
             continue;
           
           ClientPointData cpd = decompressClientData(compressedClientAOPoints[offsetIndex], coords, sp.diskRadius, ipi.aabbMin);
+
+          PointData pd = serverAOPoints[offsetIndex];
+          cpd.position = pd.position;
+          cpd.normal = pd.normal;
+          cpd.value = pd.value;
+
           
           applySamplingWeight(samplingWeight, sp, cpd, cosDeltaThreshold, cosNormalThreshold);
         }
@@ -260,7 +273,7 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
   
   if(samplingWeight.weightSum == 0.0f)
     return clamp(samplingWeight.fallbackValueSum / samplingWeight.fallbackWeightSum, 0.0f, 1.0f);
-  
+
   return clamp(samplingWeight.valueSum / samplingWeight.weightSum, 0.0f, 1.0f);
 }
 
@@ -324,13 +337,16 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
   let bsdf = gScene.materials.getBSDF(sd, lod);
 
   float3 color = bsdf.getProperties(sd).emission;
+  
+  uint3 launchIndex = DispatchRaysIndex();
+  TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(launchIndex.xy, 0);
 
   // Direct lighting from analytic light sources
   for (int i = 0; i < gScene.getLightCount(); i++)
   {
     AnalyticLightSample ls;
     evalLightApproximate(sd.posW, gScene.getLight(i), ls);
-    color += bsdf.eval(sd, ls.dir) * ls.Li;
+    color += bsdf.eval(sd, ls.dir, sg) * ls.Li;
   }
   
 #ifdef _USE_ENV_MAP

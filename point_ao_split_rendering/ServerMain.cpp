@@ -7,20 +7,20 @@
 
 // (c) Meta Platforms, Inc. and its affiliates. Confidential and proprietary.
 
-#include <rlr_streaming/transport/tcp/TcpServer.h>
+//#include <rlr_streaming/transport/tcp/TcpServer.h>
 
-#include <gflags/gflags.h>
-#include <glog/logging.h>
+//#include <gflags/gflags.h>
+//#include <glog/logging.h>
 
 #include "NetworkServer.h"
-#include "ServerScreenSpaceRenderer.h"
+//#include "ServerScreenSpaceRenderer.h"
 #include "ServerPointRenderer.h"
-#include "samples/Flags.h"
+//#include "samples/Flags.h"
 
 #include <Falcor.h>
-#include <glog/logging.h>
-#include <rlr_streaming/streaming/WebrtcStreamingApi.h>
-#include <rlr_streaming/transport/tcp/TcpServer.h>
+//#include <glog/logging.h>
+//#include <rlr_streaming/streaming/WebrtcStreamingApi.h>
+//#include <rlr_streaming/transport/tcp/TcpServer.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -29,12 +29,12 @@
 #include <atomic>
 #include <thread>
 
-using rlr_streaming::IceProtocol;
-using rlr_streaming::VideoCodec;
-using rlr_streaming::WebrtcPeerInit;
-using rlr_streaming::WebrtcStreamingApi;
+//using rlr_streaming::IceProtocol;
+//using rlr_streaming::VideoCodec;
+//using rlr_streaming::WebrtcPeerInit;
+//using rlr_streaming::WebrtcStreamingApi;
 using split_rendering::NetworkServer;
-using split_rendering::ServerScreenSpaceRenderer;
+//using split_rendering::ServerScreenSpaceRenderer;
 using split_rendering::ServerPointRenderer;
 
 
@@ -62,16 +62,17 @@ using split_rendering::ServerPointRenderer;
 using namespace Falcor;
 
 int main(int argc, char** argv) {
-  google::InitGoogleLogging(argv[0]);
-  google::InstallFailureSignalHandler();
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  //google::InitGoogleLogging(argv[0]);
+  //google::InstallFailureSignalHandler();
+  //gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-  LOG(INFO) << "Starting ...";
+  //LOG(INFO) << "Starting ...";
 
 
   ServerEventHandler handler;
 
-  NetworkServer server(4001, handler);
+  //NetworkServer server(4001, handler);
+  NetworkServer server;
 
   // Create Falcor GUI.
   const char* kFalcorGuiTitle = "Falcor Server";
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
 
   Sample::run(falcorSampleConfig, falcorRenderer, 0, nullptr);
 
-  LOG(INFO) << "Existing ...";
+  //LOG(INFO) << "Existing ...";
 
   return 0;
 }

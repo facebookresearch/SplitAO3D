@@ -23,10 +23,20 @@
 #include "PointHashGenerator.h"
 #include "PointKDTreeGenerator.h"
 #include "PointServerHashGenerator.h"
+#include "RenderGraph/BasePasses/RasterScenePass.h"
 
 #include "SSAO.h"
 
 using namespace Falcor;
+
+enum EyeType
+{
+    kEyeLeft = 0,
+    kEyeRight = 1,
+    kEyeCount = 2
+};
+
+const static EyeType kAllEyes[2] = {kEyeLeft, kEyeRight};
 
 namespace split_rendering {
 
@@ -49,7 +59,7 @@ class ServerPointRenderer : public IRenderer {
   void onResizeSwapChain(uint32_t width, uint32_t height) override;
   bool onKeyEvent(const KeyboardEvent& keyEvent) override;
   bool onMouseEvent(const MouseEvent& mouseEvent) override;
-  void onHmdEvent(const HmdState& hmdState) override;
+  //void onHmdEvent(const HmdState& hmdState) override;
   void onGuiRender(Gui* gui) override;
   void setupNetworkCallbacks();
 
@@ -71,7 +81,7 @@ class ServerPointRenderer : public IRenderer {
   bool colorOnly_ = false;
   bool pointViz_ = false;
   bool raytraceAOPoints_ = true;
-  bool sendMessages_ = true;
+  bool sendMessages_ = false;
   bool noGUI_ = false;
   bool useCompression_ = false;
   float simulatedLatencySec_ = 0.0f;
@@ -152,7 +162,7 @@ class ServerPointRenderer : public IRenderer {
   void renderAOPoints(RenderContext* renderContext);
   void renderAOBlur(RenderContext* renderContext, const Fbo* inputFbo, const Fbo* targetFbo);
   void visualizePoints(RenderContext* renderContext, const Fbo::SharedPtr& targetFbo);
-  void loadScene(const std::string& filename, const Fbo* targetFbo);
+  void loadScene(const std::filesystem::path&, const Fbo* targetFbo);
 
   void firstFrameInit(RenderContext* renderContext);
   void setupPointStructures(RenderContext* renderContext);

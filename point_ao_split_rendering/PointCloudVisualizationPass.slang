@@ -27,7 +27,8 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   // Look up position stored in the point data buffer and transform with world matrix
   uint quadId = (vertexId) / 6 + instanceOffset;
   uint quadVertexId = vertexId % 6;
-  float4 vertexPos = mul(float4(gpuPoints[quadId].position, 1), meshDesc);
+  //float4 vertexPos = mul(float4(gpuPoints[quadId].position, 1), meshDesc);
+  float4 vertexPos = mul(meshDesc, float4(gpuPoints[quadId].position, 1));
   
   
   // Compute world space offset based on tangent and bitangent
@@ -48,9 +49,10 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   
   
   // Transform normal, tangent and compute bitangent
-  float3 normal = normalize(mul(gpuPoints[quadId].normal, (float3x3) (invTransposemeshDesc)));
+  float3 normal = normalize(mul((float3x3) (invTransposemeshDesc), gpuPoints[quadId].normal));
   
-  float3 tangent = normalize(mul(gpuPoints[quadId].tangent, (float3x3) meshDesc));
+  float3 tangent = normalize(mul((float3x3) meshDesc, gpuPoints[quadId].tangent));
+
   float3 bitangent = normalize(cross(normal, tangent));
   
   // Shift quad vertices in world space according to tangent space 
@@ -59,7 +61,7 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   vertexPos.xyz += normal * 0.001f;
   
   // View projection
-  vOut.posH = mul(vertexPos, matViewProj);
+  vOut.posH = mul(matViewProj, vertexPos);
   
   // Show the value stored in the point structure
   vOut.value = gpuPoints[quadId].value;

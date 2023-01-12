@@ -5,21 +5,21 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
 
-set(FALCOR_ROOT_DIRECTORY
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../shared/third-party/Falcor/5.0/Falcor")
-set(FALCOR_MOGWAILIBS
-    ON
-    CACHE BOOL "" FORCE)
-add_subdirectory("${FALCOR_ROOT_DIRECTORY}" Falcor)
+#set(FALCOR_ROOT_DIRECTORY
+#    "${CMAKE_CURRENT_SOURCE_DIR}/../../../shared/third-party/Falcor/5.0/Falcor")
+#set(FALCOR_MOGWAILIBS
+#    ON
+#    CACHE BOOL "" FORCE)
+#add_subdirectory("${FALCOR_ROOT_DIRECTORY}" Falcor)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-set(CMAKE_MODULE_PATH "${FALCOR_ROOT_DIRECTORY}/cmake" ${CMAKE_MODULE_PATH})
-set(LZ4_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../../shared/third-party/lz4/1.9.3#3/lz4")
-set(LZ4_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../shared/third-party/lz4/1.9.3#3/lz4/lib/lz4.lib")
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+#set(CMAKE_MODULE_PATH "${FALCOR_ROOT_DIRECTORY}/cmake" ${CMAKE_MODULE_PATH})
+set(LZ4_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../lz4_win64_v1_9_4")
+set(LZ4_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../lz4_win64_v1_9_4/static/liblz4_static.lib")
 set(ZSTD_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../zstd-v1.5.2-win64")
 set(ZSTD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../zstd-v1.5.2-win64/static/libzstd_static.lib")
 
-include(FalcorUtility)
+#include(FalcorUtility)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../split_rendering/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../poisson_sampling/)
@@ -28,20 +28,20 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../flip/)
 include_directories(${ZSTD_DIRECTORY}/include/)
 include_directories(${LZ4_DIRECTORY}/include/)
 
-if(WIN32)
+#if(WIN32)
   # In order to use just main(), not WinMain() on Windows
   # https://stackoverflow.com/questions/45724766/how-to-set-c-application-entry-point-to-main-on-windows-using-cmake
-  set(CMAKE_EXE_LINKER_FLAGS
-      "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
-endif()
+#  set(CMAKE_EXE_LINKER_FLAGS
+#      "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+#endif()
 	
-set(LIBS 
-	rlr_tcp 
-	research_framework
-	rlr_streaming
-	glog
-	gflags
-	)
+#set(LIBS 
+#	rlr_tcp 
+#	research_framework
+#	rlr_streaming#
+#	glog
+#	gflags
+#	)
 	
 set(SHADERS
   HashFunctionShared.slang
@@ -67,10 +67,86 @@ set(SHADERS
   ClientCompositePointAO.ps.slang
   )
 
-falcor_sample(
-  NAME
-  FalcorServer
-  SOURCES
+#falcor_sample(
+#  NAME
+#  FalcorServer
+#  SOURCES
+#  BinaryMessageType.h
+#  MeshPointGenerator.h
+#  MeshPointGenerator.cpp
+#  PointKDTreeGenerator.h
+#  PointKDTreeGenerator.cpp
+#  PointHashGenerator.h
+#  PointHashGenerator.cpp
+#  PointServerHashGenerator.h
+#  PointServerHashGenerator.cpp
+#  TCPNetworkBase.h
+#  TCPNetworkBase.cpp
+#  ServerMain.cpp
+#  NetworkServer.cpp
+#  NetworkServer.h
+#  NetworkCompressionBase.cpp
+#  NetworkCompressionBase.h
+#  ServerScreenSpaceRenderer.cpp
+#  ServerScreenSpaceRenderer.h
+#  ServerPointRenderer.cpp
+#  ServerPointRenderer.h
+#  FLIPScreenshotComparison.h
+#  ../nanoflann/nanoflann.hpp
+#  ScreenshotCaptureHelper.h
+#  PointCloudVisualizationPass.cpp
+#  PointCloudVisualizationPass.h
+#  PointCellAllocationStage.cpp
+#  PointCellAllocationStage.h
+#  PointCellCreateNetworkBufferStage.cpp
+#  PointCellCreateNetworkBufferStage.h
+#  PointHashCreateNetworkBufferStage.cpp
+#  PointHashCreateNetworkBufferStage.h
+#  SSAO.cpp
+#  SSAO.h
+#  LZ4Compression.cpp
+#  LZ4Compression.h
+#  ZSTDCompression.cpp
+#  ZSTDCompression.h
+#  ${SHADERS}
+#  )
+
+#target_link_libraries(FalcorServer PRIVATE ${LIBS} ${LZ4_LIB_PATH} ${ZSTD_LIB_PATH})
+
+#falcor_sample(
+#  NAME
+#  FalcorClient
+#  SOURCES
+#  BinaryMessageType.h
+#  TCPNetworkBase.h
+#  TCPNetworkBase.cpp
+#  ClientMain.cpp
+#  NetworkClient.cpp
+#  NetworkClient.h
+#  NetworkCompressionBase.cpp
+#  NetworkCompressionBase.h
+#  ClientScreenSpaceRenderer.cpp
+#  ClientScreenSpaceRenderer.h
+#  ClientPointRenderer.cpp
+#  ClientPointRenderer.h
+#  ClientPointHashReceiver.h
+#  ClientPointHashReceiver.cpp
+#  LZ4Compression.cpp
+#  LZ4Compression.h
+#  ZSTDCompression.cpp
+#  ZSTDCompression.h
+#  ${SHADERS}
+#  )
+
+#target_link_libraries(FalcorClient PRIVATE ${LIBS} ${LZ4_LIB_PATH} ${ZSTD_LIB_PATH})
+
+
+add_falcor_executable(FalcorServer)
+
+
+#add_falcor_executable(HelloDXR)
+
+target_sources(FalcorServer PRIVATE
   BinaryMessageType.h
   MeshPointGenerator.h
   MeshPointGenerator.cpp
@@ -80,19 +156,19 @@ falcor_sample(
   PointHashGenerator.cpp
   PointServerHashGenerator.h
   PointServerHashGenerator.cpp
-  TCPNetworkBase.h
-  TCPNetworkBase.cpp
+  #TCPNetworkBase.h
+  #TCPNetworkBase.cpp
   ServerMain.cpp
   NetworkServer.cpp
   NetworkServer.h
   NetworkCompressionBase.cpp
   NetworkCompressionBase.h
-  ServerScreenSpaceRenderer.cpp
-  ServerScreenSpaceRenderer.h
+#  ServerScreenSpaceRenderer.cpp
+#  ServerScreenSpaceRenderer.h
   ServerPointRenderer.cpp
   ServerPointRenderer.h
   FLIPScreenshotComparison.h
-  ../nanoflann/nanoflann.hpp
+#  ../nanoflann/nanoflann.hpp
   ScreenshotCaptureHelper.h
   PointCloudVisualizationPass.cpp
   PointCloudVisualizationPass.h
@@ -109,33 +185,10 @@ falcor_sample(
   ZSTDCompression.cpp
   ZSTDCompression.h
   ${SHADERS}
-  )
+)
 
 target_link_libraries(FalcorServer PRIVATE ${LIBS} ${LZ4_LIB_PATH} ${ZSTD_LIB_PATH})
 
-falcor_sample(
-  NAME
-  FalcorClient
-  SOURCES
-  BinaryMessageType.h
-  TCPNetworkBase.h
-  TCPNetworkBase.cpp
-  ClientMain.cpp
-  NetworkClient.cpp
-  NetworkClient.h
-  NetworkCompressionBase.cpp
-  NetworkCompressionBase.h
-  ClientScreenSpaceRenderer.cpp
-  ClientScreenSpaceRenderer.h
-  ClientPointRenderer.cpp
-  ClientPointRenderer.h
-  ClientPointHashReceiver.h
-  ClientPointHashReceiver.cpp
-  LZ4Compression.cpp
-  LZ4Compression.h
-  ZSTDCompression.cpp
-  ZSTDCompression.h
-  ${SHADERS}
-  )
+target_copy_shaders(FalcorServer Samples/FalcorServer)
 
-target_link_libraries(FalcorClient PRIVATE ${LIBS} ${LZ4_LIB_PATH} ${ZSTD_LIB_PATH})
+target_source_group(FalcorServer "Samples")

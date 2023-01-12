@@ -8,19 +8,24 @@
 
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <glog/logging.h>
+//#include <glog/logging.h>
 #include <algorithm>
 #include <execution>
 #include "FLIPScreenshotComparison.h"
 #include "LZ4Compression.h"
 #include "ZSTDCompression.h"
+#include "Utils/Threading.h"
+#include "Utils/Math/Matrix.h"
+#include "Utils/Math/FalcorMath.h"
+#include "Utils/UI/TextRenderer.h"
 
-using namespace rlr_streaming;
+//using namespace rlr_streaming;
 
 namespace split_rendering {
 
 static const float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
-// static const std::string kDefaultScene = "TestScenes/Bunny.pyscene";
+//static const std::string kDefaultScene = "test_scenes/skinned.pyscene";
+ //static const std::string kDefaultScene = "test_scenes/bunny.pyscene";
 // static const std::string kDefaultScene = "test_scenes/plant.pyscene";
 // static const std::string kDefaultScene = "test_scenes/cube.pyscene";
 // static const std::string kDefaultScene = "test_scenes/chair.pyscene";
@@ -61,9 +66,9 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
   w.var("Int. Radius Mult", interpolationRadiusFactor_, 0.1f, 5.0f);
   w.var("AO filter kernel", aoKernel_, 1, 10);
   if (w.button("Load Scene")) {
-    std::string filename;
-    if (openFileDialog(Scene::getFileExtensionFilters(), filename)) {
-      loadScene(filename, gpFramework->getTargetFbo().get());
+    std::filesystem::path path;
+    if (openFileDialog(Scene::getFileExtensionFilters(), path)) {
+      loadScene(path, gpFramework->getTargetFbo().get());
     }
   }
 
@@ -84,6 +89,8 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
 }
 
 void ServerPointRenderer::setupNetworkCallbacks() {
+
+    /*
   server_.setReceiveCallback(TCPMessageType::HmdStateMessage, [&](TCPMessage&& message) {
     HmdState* state = (HmdState*)message.data.data();
 
@@ -108,11 +115,11 @@ void ServerPointRenderer::setupNetworkCallbacks() {
     camera_->setHeadPosition(data->headPos);
     camera_->setUpVector(data->upVec);
     camera_->setHeadTarget(data->headTarget);
-  });
+  });*/
 }
 
-void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targetFbo) {
-  auto sceneBuilder = SceneBuilder::create(filename);
+void ServerPointRenderer::loadScene(const std::filesystem::path& path, const Fbo* targetFbo) {
+  auto sceneBuilder = SceneBuilder::create(path);
 
   scene_ = sceneBuilder->getScene();
   if (!scene_)
@@ -128,6 +135,7 @@ void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targ
   latencyMessage_.header.type = TCPMessageType::NumberOfMessageTypes;
 
   auto typeConformances = scene_->getTypeConformances();
+  auto shaderModules = scene_->getShaderModules();
   // Update the controllers
   float radius = length(scene_->getSceneBounds().extent());
   scene_->setCameraSpeed(radius * 0.25f);
@@ -136,14 +144,33 @@ void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targ
   camera_->setDepthRange(nearZ, farZ);
   camera_->setAspectRatio((float)targetFbo->getWidth() / (float)targetFbo->getHeight());
 
-  rasterPass_ = RasterScenePass::create(
-      scene_, "Samples/FalcorServer/FinalCompositePointAO.ps.slang", "", "main");
-  rasterPass_->getProgram()->setTypeConformances(typeConformances);
+  //rasterPass_ = RasterScenePass::create(
+  //    scene_, "Samples/FalcorServer/FinalCompositePointAO.ps.slang", "vsMain", "main");
+  //rasterPass_->getProgram()->setTypeConformances(typeConformances);
+  //rasterPass_->getProgram()->setGenerateDebugInfoEnabled(true);
+
+  // Get scene defines. These need to be set on any program using the scene.
+  auto defines = scene_->getSceneDefines();
+
+  // Create raster pass.
+  // This utility wraps the creation of the program and vars, and sets the necessary scene defines.
+  Program::Desc rasterProgDesc;
+  rasterProgDesc.addShaderModules(shaderModules);
+  rasterProgDesc.addShaderLibrary("Samples/FalcorServer/FinalCompositePointAO.ps.slang")
+      .vsEntry("vsMain")
+      .psEntry("main");
+  rasterProgDesc.addTypeConformances(typeConformances);
+
+  rasterPass_ = RasterScenePass::create(scene_, rasterProgDesc, defines);
   rasterPass_->getProgram()->setGenerateDebugInfoEnabled(true);
 
-  depthNormalsPrepass_ =
-      RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "", "main");
-  depthNormalsPrepass_->getProgram()->setTypeConformances(typeConformances);
+  Program::Desc depthNormalsProgDesc;
+  depthNormalsProgDesc.addShaderModules(shaderModules);
+  depthNormalsProgDesc.addShaderLibrary("Samples/FalcorServer/DepthNormals.ps.slang")
+      .vsEntry("vsMain")
+      .psEntry("main");
+  depthNormalsProgDesc.addTypeConformances(typeConformances);
+  depthNormalsPrepass_ = RasterScenePass::create(scene_, depthNormalsProgDesc, defines);
   depthNormalsPrepass_->getProgram()->setGenerateDebugInfoEnabled(true);
 
   Sampler::Desc desc;
@@ -155,6 +182,7 @@ void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targ
 
   {
     RtProgram::Desc rtProgDesc;
+    rtProgDesc.addShaderModules(shaderModules);
     rtProgDesc.addShaderLibrary("Samples/FalcorServer/RTAO.rt.slang");
 
     // 1 for calling TraceRay from RayGen, 1 for calling it from the primary-ray ClosestHit
@@ -174,7 +202,7 @@ void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targ
     sbt->setHitGroup(0, scene_->getGeometryIDs(Scene::GeometryType::TriangleMesh), primary);
     sbt->setHitGroup(1, scene_->getGeometryIDs(Scene::GeometryType::TriangleMesh), ao);
 
-    rtaoProgram_ = RtProgram::create(rtProgDesc, scene_->getSceneDefines());
+    rtaoProgram_ = RtProgram::create(rtProgDesc, defines);
     rtaoProgram_->setTypeConformances(typeConformances);
     rtaoProgram_->setGenerateDebugInfoEnabled(true);
     rtaoVars_ = RtProgramVars::create(rtaoProgram_, sbt);
@@ -183,6 +211,7 @@ void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targ
   // Create an RT shader for writing into the point data structure -> does not have an output color
 
   RtProgram::Desc rtPointAOProgDesc;
+  rtPointAOProgDesc.addShaderModules(shaderModules);
   rtPointAOProgDesc.addShaderLibrary("Samples/FalcorServer/PointRTAO.rt.slang");
 
   // 1 for calling TraceRay from RayGen
@@ -199,7 +228,7 @@ void ServerPointRenderer::loadScene(const std::string& filename, const Fbo* targ
   pointAOSbt->setHitGroup(
       0, scene_->getGeometryIDs(Scene::GeometryType::TriangleMesh), primary_point_ao);
 
-  pointAORaytraceProgram = RtProgram::create(rtPointAOProgDesc, scene_->getSceneDefines());
+  pointAORaytraceProgram = RtProgram::create(rtPointAOProgDesc, defines);
   pointAORaytraceProgram->setTypeConformances(typeConformances);
   pointAORaytraceProgram->setGenerateDebugInfoEnabled(true);
   pointAOVars_ = RtProgramVars::create(pointAORaytraceProgram, pointAOSbt);
@@ -233,7 +262,7 @@ void ServerPointRenderer::firstFrameInit(RenderContext* renderContext) {
     msg.header.width = 0;
     msg.header.height = 0;
     msg.header.timestamp = gpFramework->getGlobalClock().getTime() + simulatedLatencySec_;
-    server_.send(msg);
+    //server_.send(msg);
   };
 
   send_vector_message(
@@ -261,7 +290,7 @@ void ServerPointRenderer::firstFrameInit(RenderContext* renderContext) {
     msg.header.size = 0;
     msg.header.width = 0;
     msg.header.height = 0;
-    server_.send(msg);
+    //server_.send(msg);
   }
 }
 
@@ -270,7 +299,6 @@ void ServerPointRenderer::setupPointStructures(RenderContext* renderContext) {
   const auto& numFinalSamplesPerInstance = pointGen_.getNumSamplesPerInstance();
   const auto& sampleOffsetPerInstance = pointGen_.getSampleOffsetPerInstance();
   const auto& diskRadiusPerInstance = pointGen_.getDiskRadiusPerInstance();
-  const auto& cpuPointsData = pointGen_.getCPUPointData();
 
   serverHashGen_.generate(scene_, pointGen_);
 
@@ -300,28 +328,28 @@ void ServerPointRenderer::setupAutomatedScreenshots() {
   // Camera positions, new camera setups can be exported with the "Minus" key
   automatedCameraSetups_ = {
       [&]() {
-        camera_->setHeadPosition(glm::vec3(-1.682712, 1.612922, 3.208458));
-        camera_->setHeadTarget(glm::vec3(-1.097630, 1.206952, 2.506413));
+        //camera_->setHeadPosition(glm::vec3(-1.682712, 1.612922, 3.208458));
+        //camera_->setHeadTarget(glm::vec3(-1.097630, 1.206952, 2.506413));
         camera_->setUpVector(glm::vec3(0.001629, 0.999997, -0.001951));
       }, 
       [&]() {
-        camera_->setHeadPosition(glm::vec3(-1.372512, 0.599973, 0.306184));
-        camera_->setHeadTarget(glm::vec3(-1.355760, 0.419115, -0.677182));
+        //camera_->setHeadPosition(glm::vec3(-1.372512, 0.599973, 0.306184));
+        //camera_->setHeadTarget(glm::vec3(-1.355760, 0.419115, -0.677182));
         camera_->setUpVector(glm::vec3(0.000000, 1.000000, 0.000000));
       },
       [&]() {
-        camera_->setHeadPosition(glm::vec3(0.370434, 0.570594, 1.203125));
-        camera_->setHeadTarget(glm::vec3(0.289852, 0.664340, 0.210795));
+        //camera_->setHeadPosition(glm::vec3(0.370434, 0.570594, 1.203125));
+        //camera_->setHeadTarget(glm::vec3(0.289852, 0.664340, 0.210795));
         camera_->setUpVector(glm::vec3(0.000224, 0.999996, 0.002757));
       },
       [&]() {
-        camera_->setHeadPosition(glm::vec3(-1.259848, 0.272437, -0.148128));
-        camera_->setHeadTarget(glm::vec3(-0.893683, -0.123221, -0.990374));
+        //camera_->setHeadPosition(glm::vec3(-1.259848, 0.272437, -0.148128));
+        //camera_->setHeadTarget(glm::vec3(-0.893683, -0.123221, -0.990374));
         camera_->setUpVector(glm::vec3(-0.000676, 0.999999, 0.001559));
       },
       [&]() {
-        camera_->setHeadPosition(glm::vec3(-1.742759, 0.183640, -0.475140));
-        camera_->setHeadTarget(glm::vec3(-0.846588, 0.121357, -0.914456));
+        //camera_->setHeadPosition(glm::vec3(-1.742759, 0.183640, -0.475140));
+        //camera_->setHeadTarget(glm::vec3(-0.846588, 0.121357, -0.914456));
         camera_->setUpVector(glm::vec3(-0.001659, 0.999998, 0.000813));
       },
   };
@@ -479,7 +507,7 @@ void ServerPointRenderer::onLoad(RenderContext* renderContext) {
   ssao_ = SSAO::create(renderContext, ssao_dict, scene_);
   ssao_->setAOMapSize(uint2(512, 512));
 
-  server_.startThreads();
+  //server_.startThreads();
 }
 
 void ServerPointRenderer::sendMessages(RenderContext* renderContext) {
@@ -528,7 +556,7 @@ void ServerPointRenderer::sendMessages(RenderContext* renderContext) {
         }
 
         msg.header.timestamp = gpFramework->getGlobalClock().getTime() + simulatedLatencySec_;
-        server_.send(msg);
+        //server_.send(msg);
       };
 
   send_vector_message(
@@ -538,7 +566,7 @@ void ServerPointRenderer::sendMessages(RenderContext* renderContext) {
   // We send back the message after we are done rendering.
   if (latencyMessage_.header.type == TCPMessageType::LatencyMeasureMessage) {
     latencyMessage_.header.timestamp += simulatedLatencySec_;
-    server_.send(latencyMessage_);
+    //server_.send(latencyMessage_);
     latencyMessage_.header.type = TCPMessageType::NumberOfMessageTypes;
   }
 }
@@ -547,24 +575,24 @@ void ServerPointRenderer::receiveMessages() {
   FALCOR_PROFILE("receiveMessages");
   TCPMessage msg;
 
-  while (server_.tryPopFront(msg)) {
-    if (msg.header.type == TCPMessageType::LatencyMeasureMessage) {
-      latencyMessage_ = msg;
-    }
-  }
+  //while (server_.tryPopFront(msg)) {
+  //  if (msg.header.type == TCPMessageType::LatencyMeasureMessage) {
+  //    latencyMessage_ = msg;
+  //  }
+  //}
 }
 
 void ServerPointRenderer::setPerFrameVars(const Fbo* targetFbo, EyeType eye) {
   FALCOR_PROFILE("setPerFrameVars");
   auto constantBuffer = rtaoVars_["perFrameConstantBuffer"];
-  constantBuffer["invView"] = glm::inverse(camera_->getViewMatrix(eye));
+  constantBuffer["invView"] = inverse(camera_->getViewMatrix());
   constantBuffer["viewportDims"] = float2(targetFbo->getWidth(), targetFbo->getHeight());
   float fovY = focalLengthToFovY(camera_->getFocalLength(), Camera::kDefaultFrameHeight);
   constantBuffer["tanHalfFovY"] = tanf(fovY * 0.5f);
   constantBuffer["sampleIndex"] = sampleIndex_++;
   constantBuffer["aoRadius"] = aoRadius_;
   constantBuffer["aoSamples"] = aoSamples_;
-  rtaoVars_["gOutput"] = targetFbo->getColorTexture(0, eye);
+  rtaoVars_["gOutput"] = targetFbo->getColorTexture(0);
 }
 
 void ServerPointRenderer::renderRT(RenderContext* renderContext, const Fbo* targetFbo) {
@@ -582,8 +610,7 @@ void ServerPointRenderer::renderRT(RenderContext* renderContext, const Fbo* targ
         renderContext,
         rtaoProgram_.get(),
         rtaoVars_,
-        uint3(targetFbo->getWidth(), targetFbo->getHeight(), 1),
-        eye);
+        uint3(targetFbo->getWidth(), targetFbo->getHeight(), 1));
   }
 }
 
@@ -634,8 +661,7 @@ void ServerPointRenderer::renderAOPoints(RenderContext* renderContext) {
       renderContext,
       pointAORaytraceProgram.get(),
       pointAOVars_,
-      uint3(serverHashGen_.getGPUPointCells()->getElementCount(), 1, 1),
-      kEyeLeft);
+      uint3(serverHashGen_.getGPUPointCells()->getElementCount(), 1, 1));
 
   frameUpdateInfo_ = *(PerFrameUpdateInfo*)gpuFrameUpdateInfo_->map(Buffer::MapType::Read);
 
@@ -660,8 +686,8 @@ void ServerPointRenderer::renderAOBlur(
       break;
 
     auto vars = computePass_->getVars();
-    vars["inTex"] = inputFbo->getColorTexture(0, eye);
-    vars["outTex"] = targetFbo->getColorTexture(0, eye);
+    vars["inTex"] = inputFbo->getColorTexture(0);
+    vars["outTex"] = targetFbo->getColorTexture(0);
 
     auto constantBuffer = vars["perFrameConstantBuffer"];
 
@@ -676,6 +702,7 @@ void ServerPointRenderer::visualizePoints(
   FALCOR_PROFILE("visualizePoints");
   const auto& animationController = scene_->getAnimationController();
   const auto& globalTransforms = animationController->getGlobalMatrices();
+  const auto& invTransposeGlobalTransforms = animationController->getInvTransposeGlobalMatrices();
   uint32_t meshCount = scene_->getMeshCount();
 
   const auto instanceCount = scene_->getGeometryInstanceCount();
@@ -684,12 +711,14 @@ void ServerPointRenderer::visualizePoints(
     const auto& instance = scene_->getGeometryInstance(instanceId);
 
     const auto& localToWorld = globalTransforms[instance.globalMatrixID];
+    const auto& invTranspLocalToWorld = invTransposeGlobalTransforms[instance.globalMatrixID];
 
     PointCloudVisualizationPass::PointCloudPassData data(
         targetFbo,
         serverHashGen_.getGPUPointCells(),
         localToWorld,
-        camera_->getViewProjMatrix(EyeType::kEyeLeft),
+        invTranspLocalToWorld,
+        camera_->getViewProjMatrix(),
         serverHashGen_.getCPUInstancePointInfo()[instanceId].pointCellOffset,
         serverHashGen_.getCPUInstancePointInfo()[instanceId].maxNumPoints);
 
@@ -754,15 +783,15 @@ void ServerPointRenderer::onFrameRender(
 
     // This is the pose we used from the client for rendering, thus also the one for end to end
     // latency.
-    if (aoType_ == AO_TYPE_PER_PIXEL_RTAO) {
+    if (false && aoType_ == AO_TYPE_PER_PIXEL_RTAO) {
       renderRT(renderContext, rtaoFBO_.get());
       renderAOBlur(renderContext, rtaoFBO_.get(), blurredAOFBO_.get());
     }
 
-    if (aoType_ == AO_TYPE_SSAO) {
+    if (false && aoType_ == AO_TYPE_SSAO) {
       // Render SSAO baseline
       for (EyeType eye : kAllEyes) {
-        if (!targetFbo->getColorTexture(0, eye))
+        if (!targetFbo->getColorTexture(0))
           break;
 
         {
@@ -803,10 +832,15 @@ void ServerPointRenderer::onFrameRender(
     auto kdTreeConstantBuffer = rasterVars["kdTreeConstantBuffer"];
     kdTreeConstantBuffer["numNeighbors"] = numNeighbors_;
 
+    /*
     rasterPass_->renderScene(renderContext, screenshotFBO_, [&](EyeType eye) {
       rasterVars["aoTex"] = blurredAOFBO_->getColorTexture(0, eye);
       rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0, eye);
-    });
+    });*/
+
+    rasterVars["aoTex"] = blurredAOFBO_->getColorTexture(0);
+    rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0);
+    rasterPass_->renderScene(renderContext, screenshotFBO_);
 
     if (pointViz_) {
       visualizePoints(renderContext, screenshotFBO_);
@@ -835,6 +869,8 @@ void ServerPointRenderer::onFrameRender(
 
 bool ServerPointRenderer::onKeyEvent(const KeyboardEvent& keyEvent) {
   if (keyEvent.type == KeyboardEvent::Type::KeyReleased) {
+
+      /*
     if (keyEvent.key == KeyboardEvent::Key::Minus) {
       // Export current cam position / orientation
 
@@ -852,10 +888,12 @@ bool ServerPointRenderer::onKeyEvent(const KeyboardEvent& keyEvent) {
       logWarning(cameraDumpStr);
 
       screenshotFBO_->getColorTexture(0)->captureToFile(0, 0, "texture.png");
-    } else if (keyEvent.key == KeyboardEvent::Key::Equal) {
+    } else */
+
+    if (keyEvent.key == Input::Key::Equal) {
       // Setup screenshot helper
       setupAutomatedScreenshots();
-    } else if (keyEvent.key == KeyboardEvent::Key::RightBracket) {
+    } else if (keyEvent.key == Input::Key::RightBracket) {
       // Reset time stamp
       gpFramework->getGlobalClock().setFrame(0);
       gpFramework->getGlobalClock().setTime(0);
@@ -870,9 +908,9 @@ bool ServerPointRenderer::onKeyEvent(const KeyboardEvent& keyEvent) {
         msg.header.size = 0;
         msg.header.width = 0;
         msg.header.height = 0;
-        server_.send(msg);
+        //server_.send(msg);
       }
-    } else if (keyEvent.key == KeyboardEvent::Key::N) {
+    } else if (keyEvent.key == Input::Key::N) {
       noGUI_ = !noGUI_;
     }
   }
@@ -886,10 +924,11 @@ bool ServerPointRenderer::onMouseEvent(const MouseEvent& mouseEvent) {
   return scene_ && scene_->onMouseEvent(mouseEvent);
 }
 
+/*
 void ServerPointRenderer::onHmdEvent(const HmdState& hmdState) {
   if (scene_)
     scene_->onHmdEvent(hmdState);
-}
+}*/
 
 void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
   float h = (float)height;
@@ -903,9 +942,9 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
     camera_->setAspectRatio(aspectRatio);
   }
 
-  rtaoFBO_ = Fbo::create(width, height);
-  screenshotFBO_ = Fbo::create(width, height);
-  blurredAOFBO_ = Fbo::create(width, height);
+  rtaoFBO_ = Fbo::create();
+  screenshotFBO_ = Fbo::create();
+  blurredAOFBO_ = Fbo::create();
 
   for (EyeType eye : kAllEyes) {
     if (eye == kEyeRight && !stereoServer_)
@@ -950,10 +989,10 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
         Resource::BindFlags::ShaderResource | Resource::BindFlags::DepthStencil);
 
     // Attach textures for each eye to FBO
-    rtaoFBO_->attachColorTarget(texAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel, eye);
-    blurredAOFBO_->attachColorTarget(texBlurredAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel, eye);
+    rtaoFBO_->attachColorTarget(texAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel);
+    blurredAOFBO_->attachColorTarget(texBlurredAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel);
     screenshotFBO_->attachColorTarget(texScreenshot_[eye], 0);
-    screenshotFBO_->attachDepthStencilTarget(texDepth_[eye], 0, 0, Fbo::kAttachEntireMipLevel, eye);
+    screenshotFBO_->attachDepthStencilTarget(texDepth_[eye], 0, 0, Fbo::kAttachEntireMipLevel);
   }
 }
 

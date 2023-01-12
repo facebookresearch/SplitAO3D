@@ -3,6 +3,7 @@
 import Scene.Shading;
 import Scene.Raster;
 import PointData;
+import Utils.Math.MatrixUtils;
 
 struct AOShadingPoint
 {
@@ -31,8 +32,9 @@ AOShadingPoint getInstanceShadingPoint(ShadingData sd, VSOut vsOut, float interp
   // Convert ray origin and direction to local space.
   AOShadingPoint sp;
   
-  sp.posW =  mul(worldInvTransposeMat, sd.posW - shadingWorldMat[3].xyz);
-  sp.N = mul(worldInvTransposeMat, sd.N);
+  sp.posW = mul(sd.posW - extractTranslate(shadingWorldMat), worldInvTransposeMat);
+  sp.N = mul(sd.N, worldInvTransposeMat);
+  
   sp.vertN = mul(worldInvTransposeMat, normalize(vsOut.normalW));
   sp.diskRadius = DISK_RADIUS_FACTOR * instanceToDiskRadius[vsOut.instanceID.index];
   sp.searchRadius = interpolationRadiusFactor * 0.5 * (sp.diskRadius) * (sp.diskRadius);
@@ -52,14 +54,14 @@ AOShadingPoint getInstanceShadingPointPreviousFrame(ShadingData sd, VSOut vsOut,
   float3 prevPos = gScene.getPrevPosW(shadingInstanceID, triangleIndex, barycentrics);
   
   // Transform prevPos and current pos to local space
-  prevPos = mul(prevWorldInvTransposeMat, prevPos - prevWorldMat[3].xyz);
+  prevPos = mul(prevPos - extractTranslate(prevWorldMat), prevWorldInvTransposeMat);
 
   // Convert ray origin and direction to local space.
   AOShadingPoint sp;
   
   sp.posW = prevPos;
-  sp.N = mul(worldInvTransposeMat, sd.N);
-  sp.vertN = mul(worldInvTransposeMat, normalize(vsOut.normalW));
+  sp.N = mul(sd.N, worldInvTransposeMat);
+  sp.vertN = mul(normalize(vsOut.normalW), worldInvTransposeMat);
   sp.diskRadius = DISK_RADIUS_FACTOR * instanceToDiskRadius[vsOut.instanceID.index];
   sp.searchRadius = interpolationRadiusFactor * 0.5 * (sp.diskRadius) * (sp.diskRadius);
   

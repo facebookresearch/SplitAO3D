@@ -4,6 +4,7 @@ import Rendering.Lights.LightHelpers;
 import Utils.Math.MathHelpers;
 import PointData;
 import HashFunctionShared;
+import Utils.Math.MatrixUtils;
 
 #include "PointAOConstantsShared.slangh"
 
@@ -100,7 +101,7 @@ float raytraceAO(ShadingData sd, UniformSampleGenerator sg)
 [shader("raygeneration")]
 void rayGen()
 {
-	// This shader traces rays from each point and is responsible for determining the changes (value, normal, position) of points. 
+    // This shader traces rays from each point and is responsible for determining the changes (value, normal, position) of points. 
     
   uint3 launchIndex = DispatchRaysIndex();
   
@@ -124,7 +125,7 @@ void rayGen()
   
   let lod = ExplicitLodTextureSampler(0.f);
   
-  pt.normal = normalize(mul(pt.normal, gScene.getInverseTransposeWorldMatrix(instanceID)));
+  pt.normal = normalize(mul(gScene.getInverseTransposeWorldMatrix(instanceID), pt.normal));
   ShadingData sd = gScene.materials.prepareShadingData(v, materialID, pt.normal, lod);
   
   UniformSampleGenerator sg = UniformSampleGenerator(launchIndex.x, pt.instanceId);
@@ -144,9 +145,9 @@ void rayGen()
   float3 oldPosition = serverAOPoints[launchIndex.x].position;
   float3 oldNormal = serverAOPoints[launchIndex.x].normal;
   float oldValue = serverAOPoints[launchIndex.x].value;
-  
-  float3 newPosition = mul(worldInvTransposeMat, sd.posW - shadingWorldMat[3].xyz);
-  float3 newNormal = normalize(mul(worldInvTransposeMat, sd.N));
+
+  float3 newPosition = mul(sd.posW - extractTranslate(shadingWorldMat), worldInvTransposeMat);
+  float3 newNormal = normalize(mul(sd.N, worldInvTransposeMat));
   float newValue = aoTerm;
   
   
@@ -175,11 +176,11 @@ void rayGen()
   }
   
   // Update server points
+  serverAOPoints[launchIndex.x].value = newValue;
   serverAOPoints[launchIndex.x].position = newPosition;
   serverAOPoints[launchIndex.x].normal = newNormal;
-  serverAOPoints[launchIndex.x].value = newValue;
   // Tangent is used for visualization only
-  serverAOPoints[launchIndex.x].tangent = normalize(mul(worldInvTransposeMat, sd.T)); 
+  serverAOPoints[launchIndex.x].tangent = normalize(mul(sd.T, worldInvTransposeMat)); 
   
   InterlockedAdd(frameUpdateInfo[0].numChangedPoints, 1);
   

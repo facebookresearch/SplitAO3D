@@ -27,6 +27,9 @@
  **************************************************************************/
 #include "SSAO.h"
 #include "glm/gtc/random.hpp"
+#include "Utils/Math/FalcorMath.h"
+
+using namespace Falcor;
 
 const RenderPass::Info SSAO::kInfo{
     "SSAO",
@@ -78,7 +81,7 @@ SSAO::SSAO(const Scene::SharedPtr& scene) : RenderPass(kInfo), scene_(scene) {
 
   auto typeConformances = scene_->getTypeConformances();
   depthNormalsPrepass_ =
-      RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "", "main");
+      RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "vsMain", "main");
   depthNormalsPrepass_->getProgram()->setTypeConformances(typeConformances);
 
   computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
@@ -150,7 +153,8 @@ void SSAO::renderDepthNormalsPrepass(
   static constexpr const float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
   renderContext->clearFbo(targetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
   // Per-eye should already work here if the FBO has an attachment per eye.
-  depthNormalsPrepass_->renderScene(renderContext, targetFbo, [&](EyeType eye) {});
+  //depthNormalsPrepass_->renderScene(renderContext, targetFbo, [&](EyeType eye) {});
+  depthNormalsPrepass_->renderScene(renderContext, targetFbo);
 }
 
 void SSAO::renderAOBlur(
@@ -180,11 +184,11 @@ void SSAO::init() {
   uint32_t width = aoMapSize_.x;
   uint32_t height = aoMapSize_.y;
 
-  depthNormalsFbo_ = Fbo::create(width, height);
-  blurredSSAOFbo_ = Fbo::create(width, height);
+  depthNormalsFbo_ = Fbo::create();
+  blurredSSAOFbo_ = Fbo::create();
 
-  for (EyeType eye : kAllEyes) {
-    texNormals_[eye] = Texture::create2D(
+  //for (EyeType eye : kAllEyes) {
+    texNormals_[0] = Texture::create2D(
         width,
         height,
         ResourceFormat::RGBA8UnormSrgb,
@@ -193,7 +197,7 @@ void SSAO::init() {
         nullptr,
         Resource::BindFlags::ShaderResource | Resource::BindFlags::RenderTarget);
 
-    texDepth_[eye] = Texture::create2D(
+    texDepth_[0] = Texture::create2D(
         width,
         height,
         ResourceFormat::D32Float,
@@ -202,7 +206,7 @@ void SSAO::init() {
         nullptr,
         Resource::BindFlags::ShaderResource | Resource::BindFlags::DepthStencil);
 
-    texBlurredAO_[eye] = Texture::create2D(
+    texBlurredAO_[0] = Texture::create2D(
         width,
         height,
         ResourceFormat::R32Float,
@@ -213,12 +217,12 @@ void SSAO::init() {
             Resource::BindFlags::RenderTarget);
 
     // Attach textures for each eye to FBO
-    depthNormalsFbo_->attachColorTarget(texNormals_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel, eye);
+    depthNormalsFbo_->attachColorTarget(texNormals_[0], 0, 0, 0, Fbo::kAttachEntireMipLevel);
     depthNormalsFbo_->attachDepthStencilTarget(
-        texDepth_[eye], 0, 0, Fbo::kAttachEntireMipLevel, eye);
+        texDepth_[0], 0, 0, Fbo::kAttachEntireMipLevel);
     blurredSSAOFbo_->attachColorTarget(
-        texBlurredAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel, eye);
-  }
+        texBlurredAO_[0], 0, 0, 0, Fbo::kAttachEntireMipLevel);
+  //}
 
   setKernel();
   setNoiseTexture(noiseSize_.x, noiseSize_.y);
@@ -227,7 +231,7 @@ void SSAO::init() {
 void SSAO::generateAOMap(
     RenderContext* renderContext,
     const Camera* camera,
-    EyeType eye) {
+    uint32_t eye) {
   if (isDirty_) {
     ShaderVar var = ssaoPass_["StaticCB"];
     if (var.isValid())
@@ -237,7 +241,7 @@ void SSAO::generateAOMap(
 
   {
     ShaderVar var = ssaoPass_["PerFrameCB"];
-    camera->setShaderData(var["gCamera"], eye);
+    camera->setShaderData(var["gCamera"]);
   }
 
   renderDepthNormalsPrepass(renderContext, depthNormalsFbo_);
@@ -245,7 +249,7 @@ void SSAO::generateAOMap(
   // Update state/vars
   ssaoPass_["gNoiseSampler"] = noiseSampler_;
   ssaoPass_["gTextureSampler"] = textureSampler_;
-  ssaoPass_["gDepthTex"] = depthNormalsFbo_->getDepthStencilTexture(eye);
+  ssaoPass_["gDepthTex"] = depthNormalsFbo_->getDepthStencilTexture();
   ssaoPass_["gNoiseTex"] = noiseTexture_;
   ssaoPass_["gNormalTex"] = depthNormalsFbo_->getColorTexture(eye);
 

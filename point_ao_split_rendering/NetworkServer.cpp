@@ -5,14 +5,14 @@
 namespace split_rendering {
 
 NetworkServer::~NetworkServer() {
-  stopThreads();
+  //stopThreads();
 }
 
 int NetworkServer::establishConnection() 
 {
-  if (!server_.acceptConnection(port_)) {
-    return -1;
-  }
+  //if (!server_.acceptConnection(port_)) {
+  //  return -1;
+  //}
 
   return 0;
 }

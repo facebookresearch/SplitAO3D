@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include <rlr_streaming/streaming/util/AtomicQueue.h>
-#include <rlr_streaming/transport/tcp/TcpBase.h>
+//#include <rlr_streaming/streaming/util/AtomicQueue.h>
+//#include <rlr_streaming/transport/tcp/TcpBase.h>
 
-#include <gflags/gflags.h>
-#include <glog/logging.h>
+//#include <gflags/gflags.h>
+//#include <glog/logging.h>
 #include <thread>
 #include <unordered_map>
 #include "BinaryMessageType.h"

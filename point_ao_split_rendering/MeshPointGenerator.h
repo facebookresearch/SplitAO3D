@@ -2,6 +2,7 @@
 
 #include <Falcor.h>
 #include "PointData.slang"
+#include <random>
 
 namespace split_rendering {
 
@@ -128,8 +129,8 @@ class MeshPointGenerator {
   Falcor::RtProgram::SharedPtr pointGenRtProgram_;
 
   // Constants for point generation
-  static constexpr uint32_t kNumSamplesPerUnitSquaredEliminated = 4096;
-  static constexpr uint32_t kMinSamplesPerInstance = 4096;
+  static constexpr uint32_t kNumSamplesPerUnitSquaredEliminated = 2048;
+  static constexpr uint32_t kMinSamplesPerInstance = 2048;
   static constexpr uint32_t kSamplesEliminatedFactor = 16;
 };
 

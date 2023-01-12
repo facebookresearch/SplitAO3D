@@ -53,8 +53,10 @@ void PointCloudVisualizationPass::run(
   programVars_->setBuffer("gpuPoints", data.gpuPoints);
   programVars_["perFrameConstantBuffer"]["matViewProj"] = data.viewProj;
   programVars_["perFrameConstantBuffer"]["meshDesc"] = data.localToWorld;
-  programVars_["perFrameConstantBuffer"]["invTransposemeshDesc"] =
-      glm::transpose(glm::inverse(data.localToWorld));
+  programVars_["perFrameConstantBuffer"]["invTransposemeshDesc"] = data.invTranspLocalToWorld;
+
+  auto test = data.invTranspLocalToWorld;
+  auto test2 = rmcv::inverse(data.localToWorld).getTranspose();
 
   programVars_["perFrameConstantBuffer"]["instanceOffset"] = data.instanceOffset;
   programVars_["perFrameConstantBuffer"]["instancePointCount"] = data.instancePointCount;
