@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <execution>
 #include "../poisson_sampling/cySampleElim.h"
+#include "Core/API/Device.h"
+#include <filesystem>
+#include <fstream>
 
 namespace split_rendering {
 
@@ -34,6 +37,10 @@ uint32_t MeshPointGenerator::samplePoissonDiskOnMeshOffsets(
     instanceDiskRadius = diameterMaxFull / 2.0f;
     float diameterMax = 2.0f *
         wse.GetMaxPoissonDiskRadius(2, (numSamplesAfterElimination + 1) / 2, totalSurfaceArea);
+
+    // TODO: check if file exists and load, otherwise don't load
+    // need file path that consists of num samples and is stored alongside the mesh/scene somewhere
+
 
     for (uint32_t i = 0; i < numSamplesUniform; i++) {
       bool frontSided = uniformPointData[uniformDataOffset + i].value > 0;
@@ -160,7 +167,7 @@ std::vector<uint32_t> MeshPointGenerator::getNumSamplesPerTriangle(
   // fine/intricate geometry that has a very small area (plants / trees / foliage).
   float remainderTotal = 0.0f;
   uint32_t actualSamples = 0;
-  constexpr uint32_t kMinSamplesPerTriangle = 3;
+  constexpr uint32_t kMinSamplesPerTriangle = 1;
   const float rcpTriAreaTotal = numSamples / totalSurfaceArea;
 
   // NOTE: this loop could be parallelized
@@ -257,7 +264,7 @@ void MeshPointGenerator::computeSampleCounts(
     glm::vec3 skew;
     glm::vec4 perspective;
     decompose(localToWorld, scale, rotation, translation, skew, perspective);
-    float scaleFactor = glm::max(glm::max(scale.x, scale.y), scale.z);
+    float scaleFactor = glm::abs(glm::max(glm::max(scale.x, scale.y), scale.z));
 
     numSamplesPerInstance_.push_back(std::max(
         (uint32_t)std::ceil(
@@ -319,6 +326,7 @@ void MeshPointGenerator::computeUniformSamples(
     std::vector<uint32_t>& uniformSamplesOffset,
     std::vector<std::vector<uint32_t>>& triangleSampleCountsPerInstance,
     std::vector<std::vector<uint32_t>>& triangleSampleOffsetsPerInstance) {
+
   // NOTE: this could use dispenso::for_each which might have better performance
   std::for_each(
       std::execution::seq, instanceIds.begin(), instanceIds.end(), [&](uint32_t& instanceId) {
@@ -329,6 +337,10 @@ void MeshPointGenerator::computeUniformSamples(
         // the things that we need, so that is more convenient
 
         const auto& instance = scene->getGeometryInstance(instanceId);
+
+        if (checkIfPoissonSamplesExist(scene, instanceId))
+          return;
+
         const auto& meshDesc = scene->getMesh(Falcor::MeshID{instance.geometryID});
         uint32_t numTriangles = meshDesc.indexCount / 3;
 
@@ -336,6 +348,12 @@ void MeshPointGenerator::computeUniformSamples(
         constantBuffer["instanceId"] = instanceId;
         constantBuffer["uniformSamplesOffset"] = uniformSamplesOffset[instanceId];
         constantBuffer["numTriangles"] = numTriangles;
+
+        std::cout << "Creating triangle GPU buffers for uniform sampling "
+          << "(" << instanceId << " / " << instanceIds.size() << "): num tris: "
+          << numTriangles << ", "
+          << triangleSampleCountsPerInstance[instanceId].size() * sizeof(uint32_t) << ", "
+          << triangleSampleOffsetsPerInstance[instanceId].size() * sizeof(uint32_t) << "\n";
 
         // Generating this for each instance is also not great, should be generated once and indexed
         // with instance offsets / flattened
@@ -362,19 +380,94 @@ void MeshPointGenerator::computeUniformSamples(
         pointGenRtVars_->setBuffer("uniformPoints", uniformPointsGpu);
 
         // We "trace" a ray for each triangle, and each triangle generates its points
+
         scene->raytrace(
-            renderContext,
-            pointGenRtProgram_.get(),
-            pointGenRtVars_,
-            Falcor::uint3(numTriangles, 1, 1));
+          renderContext,
+          pointGenRtProgram_.get(),
+          pointGenRtVars_,
+          Falcor::uint3(numTriangles, 1, 1));
+
+        std::cout << "Uniform point gen done:  "
+          << "(" << instanceId << " / " << instanceIds.size() << ")\n";
 
         renderContext->flush(true);
+        
       });
+}
+
+std::string MeshPointGenerator::getPoissonSampleFileName(Falcor::Scene::SharedPtr& scene, uint32_t instanceID)
+{
+  const auto& instance = scene->getGeometryInstance(instanceID);
+
+  // TODO: we actually want to create a filename based on name and a hash of the bbox / matrix / whatever else
+  std::string full_unique_id_suffix;
+
+  const auto& animController = scene->getAnimationController();
+  const auto& globalMatrices = animController->getGlobalMatrices();
+  const auto& mesh = scene->getMesh(Falcor::MeshID{ instance.geometryID });
+
+  std::string geometry_str_for_hash;
+
+  for (uint32_t i = 0; i < 16; i++)
+  {
+    geometry_str_for_hash += std::to_string(globalMatrices[instance.globalMatrixID].data()[i]);
+  }
+
+  geometry_str_for_hash += std::to_string(mesh.indexCount) + std::to_string(mesh.vertexCount) + std::to_string(mesh.isDynamic()) + std::to_string(mesh.isDisplaced());
+
+  // Get some vertices for the hash too
+  auto& sceneData = scene->getSceneData();
+  auto& meshVertex0 = sceneData.meshStaticData[instance.vbOffset];
+  auto& meshVertex1 = sceneData.meshStaticData[instance.vbOffset + 1];
+
+  geometry_str_for_hash += std::to_string(meshVertex0.position.x) + std::to_string(meshVertex0.texCrd.y) + std::to_string(meshVertex1.position.z) + std::to_string(meshVertex1.texCrd.y);
+
+
+  std::hash<std::string> stringHasher;
+
+  //full_unique_id_suffix += std::to_string(instance.materialID) + "_" + std::to_string(stringHasher(matrix_str));
+  full_unique_id_suffix += std::to_string(stringHasher(geometry_str_for_hash));
+
+  std::string meshInstanceName = "mesh_" + scene->getMaterial(Falcor::MaterialID{ instance.materialID })->getName() + "_" + full_unique_id_suffix;
+  std::string scenePath = "poisson_caches";//scene->getPath().parent_path().string();
+  std::string sceneName = scene->getPath().filename().replace_extension("").string();
+  std::string poissonPointsPath = scenePath + "/poisson_points_cache_" + sceneName + "_" + std::to_string(kNumSamplesPerUnitSquaredEliminated)
+    + "_" + std::to_string(kMinSamplesPerInstance) + "_" + std::to_string(kSamplesEliminatedFactor) + "/" + meshInstanceName + ".poisson";
+
+  return poissonPointsPath;
+}
+
+bool MeshPointGenerator::checkIfPoissonSamplesExist(Falcor::Scene::SharedPtr& scene, uint32_t instanceID)
+{
+  return std::filesystem::exists(getPoissonSampleFileName(scene, instanceID));
+}
+
+void MeshPointGenerator::loadPoissonSamples(std::string filePath, std::vector<Falcor::PointData>& output, uint32_t outputOffset)
+{
+  std::ifstream file(filePath, std::ios::binary);
+  file.unsetf(std::ios::skipws);
+
+  //get length of file
+  file.seekg(0, std::ios::end);
+  size_t length = file.tellg();
+  file.seekg(0, std::ios::beg);
+
+  file.read((char*) &output[outputOffset], length);
+  //output.insert(output.begin() + outputOffset, std::istream_iterator<Falcor::PointData>(file), std::istream_iterator<Falcor::PointData>());
+}
+
+void MeshPointGenerator::savePoissonSamples(std::string filePath, std::vector<Falcor::PointData>& output, uint32_t outputOffset, uint32_t numSamples)
+{
+  std::ofstream file(filePath, std::ios::binary);
+  file.write((const char*) &output[outputOffset], sizeof(Falcor::PointData) * numSamples);
 }
 
 void MeshPointGenerator::generatePointsInScene(
     Falcor::Scene::SharedPtr& scene,
     Falcor::RenderContext* renderContext) {
+
+  auto rng = std::default_random_engine{};
+
   setupGPUUniformPointGenerationPipeline(scene);
 
   pointData_.clear();
@@ -417,10 +510,15 @@ void MeshPointGenerator::generatePointsInScene(
       Falcor::Buffer::CpuAccess::None);
 
   // Prepare indices for parallel for
+  //int dummy_int_count = 100;
   std::vector<uint32_t> instanceIds(instanceCount);
-  for (uint32_t instanceId = 0; instanceId < instanceCount; instanceId++) {
+  for (uint32_t instanceId = 0; instanceId < instanceIds.size(); instanceId++) {
     instanceIds[instanceId] = instanceId;
   }
+
+  // Create directory for poisson point caching
+  auto poissonFilename = getPoissonSampleFileName(scene, 0);
+  std::filesystem::create_directories(std::filesystem::path{ poissonFilename }.remove_filename());
 
   // Compute uniform samples on the GPU
   computeUniformSamples(
@@ -441,10 +539,15 @@ void MeshPointGenerator::generatePointsInScene(
   // Pre-allocate memory that will hold the resulting CPU poisson rejected points
   pointData_.resize(numSamplesTotal);
 
+  std::mutex poissonCacheFileMutex;
+
   // NOTE: this could use dispenso::for_each which might have better performance
   std::for_each(
       std::execution::par, instanceIds.begin(), instanceIds.end(), [&](uint32_t& instanceId) {
         const auto& instance = scene->getGeometryInstance(instanceId);
+
+        //if (instanceId == 90)
+        //  return;
 
         bool use16Bit =
             (instance.flags & (uint32_t)Falcor::GeometryInstanceFlags::Use16BitIndices) > 0;
@@ -458,19 +561,87 @@ void MeshPointGenerator::generatePointsInScene(
         bool isDoubleSided =
             scene->getMaterial(Falcor::MaterialID{instance.materialID})->isDoubleSided();
 
-        numPlacedSamples = samplePoissonDiskOnMeshOffsets(
-            uniformPointData,
-            uniformSamplesOffset[instanceId],
-            meshDesc.indexCount / 3,
-            uniformSamplesCount[instanceId],
-            numSamplesPerInstance_[instanceId],
-            totalSurfaceAreas[instanceId],
-            isDoubleSided,
-            instanceDiskRadius,
-            sampleOffsetPerInstance_[instanceId],
-            pointData_);
 
-        diskRadiusPerInstance_[instanceId] = instanceDiskRadius;
+        std::string poissonFilename = getPoissonSampleFileName(scene, instanceId);
+
+        poissonCacheFileMutex.lock();
+        bool fileExists = checkIfPoissonSamplesExist(scene, instanceId);
+        poissonCacheFileMutex.unlock();
+
+        if (fileExists)
+        {
+          // Set disk radius
+          cy::WeightedSampleElimination<Falcor::float3, float, 3, uint32_t> wse;
+          float diameterMax = 2.0f * wse.GetMaxPoissonDiskRadius(2, numSamplesPerInstance_[instanceId], totalSurfaceAreas[instanceId]);
+          diskRadiusPerInstance_[instanceId] = diameterMax / 2;
+
+          // Load file into output
+          poissonCacheFileMutex.lock();
+          loadPoissonSamples(poissonFilename, pointData_, sampleOffsetPerInstance_[instanceId]);
+          poissonCacheFileMutex.unlock();
+
+          std::cout << "Loaded poisson disk samples done from " << poissonFilename << " ( " << instanceId << " / " << instanceIds.size() - 1 << " )\n";
+        }
+        else
+        {
+
+          std::string exception_mesh = "mesh_tile_floor_rubber_mat_5591710445552534511.poisson";
+          if (poissonFilename.compare(poissonFilename.length() - exception_mesh.length(), exception_mesh.length(), exception_mesh) == 0)
+          {
+            // Do random sampling of the uniform samples... this mesh takes ages to optimize otherwise.
+            std::vector<uint32_t> randIndices(uniformSamplesCount[instanceId]);
+
+            for (uint32_t i = 0; i < randIndices.size(); i++)
+              randIndices[i] = i;
+
+            std::shuffle(std::begin(randIndices), std::end(randIndices), rng);
+
+            for (uint32_t outputIndex = 0; outputIndex < numSamplesPerInstance_[instanceId]; outputIndex++)
+            {
+              pointData_[outputIndex + sampleOffsetPerInstance_[instanceId]] = uniformPointData[randIndices[outputIndex] + uniformSamplesOffset[instanceId]];
+            }
+
+            // Set disk radius
+            cy::WeightedSampleElimination<Falcor::float3, float, 3, uint32_t> wse;
+            float diameterMax = 2.0f * wse.GetMaxPoissonDiskRadius(2, numSamplesPerInstance_[instanceId], totalSurfaceAreas[instanceId]);
+            diskRadiusPerInstance_[instanceId] = diameterMax / 2;
+            numPlacedSamples = numSamplesPerInstance_[instanceId];
+
+          }
+          else
+          {
+            std::cout << "Poisson disk sampling start for " << poissonFilename << " " << instanceId << " / " << instanceIds.size() - 1 << "\n";
+            numPlacedSamples = samplePoissonDiskOnMeshOffsets(
+              uniformPointData,
+              uniformSamplesOffset[instanceId],
+              meshDesc.indexCount / 3,
+              uniformSamplesCount[instanceId],
+              numSamplesPerInstance_[instanceId],
+              totalSurfaceAreas[instanceId],
+              isDoubleSided,
+              instanceDiskRadius,
+              sampleOffsetPerInstance_[instanceId],
+              pointData_);
+
+            diskRadiusPerInstance_[instanceId] = instanceDiskRadius;
+
+          }
+
+
+          // Save points into file
+          poissonCacheFileMutex.lock();
+
+          if (checkIfPoissonSamplesExist(scene, instanceId))
+          {
+            int a = 3;
+            getPoissonSampleFileName(scene, instanceId);
+          }
+          savePoissonSamples(poissonFilename, pointData_, sampleOffsetPerInstance_[instanceId], numPlacedSamples);
+          poissonCacheFileMutex.unlock();
+
+          std::cout << "Poisson disk sampling done for " << poissonFilename << " " << instanceId << " / " << instanceIds.size() - 1 << "\n";
+        }
+
       });
 
   gpuDiskRadiusPerInstance_ = Falcor::Buffer::createStructured(
@@ -479,6 +650,7 @@ void MeshPointGenerator::generatePointsInScene(
       Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
       Falcor::Buffer::CpuAccess::None,
       diskRadiusPerInstance_.data());
+
 }
 
 void MeshPointGenerator::setupGPUUniformPointGenerationPipeline(

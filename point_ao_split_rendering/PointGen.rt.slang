@@ -57,9 +57,19 @@ void rayGen()
   const GeometryInstanceID instanceID = { instanceId };
   UniformSampleGenerator sg = UniformSampleGenerator(uint2(uniformSamplesOffset, triangleSampleOffsetsPerInstance[originalTriangleId] * numSamples), originalTriangleId);
   
+  uint materialID = gScene.getMaterialID(instanceID);
+      
+  const MaterialHeader mtl = gScene.materials.getMaterialHeader(materialID);
+
   // We start at the triangle we need, and move towards other triangles if necessary
   uint placedSamples = 0;
-  int numTriangleTrials = 100;
+  int numTriangleTrials = 5;
+
+  if (mtl.isDoubleSided())
+  {
+    numTriangleTrials = 50;
+  }
+
   uint triangleId = originalTriangleId;
   
   while(numTriangleTrials--)
@@ -76,9 +86,6 @@ void rayGen()
       
       
       VertexData v = getUntransformedVertexData(instanceID, triangleId, barycentrics);
-      uint materialID = gScene.getMaterialID(instanceID);
-      
-      const MaterialHeader mtl = gScene.materials.getMaterialHeader(materialID);
   
       if (!gScene.materials.alphaTest(v, materialID, 0.f))
       {

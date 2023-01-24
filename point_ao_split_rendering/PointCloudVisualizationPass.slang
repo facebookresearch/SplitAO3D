@@ -58,7 +58,7 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   // Shift quad vertices in world space according to tangent space 
   vertexPos.xyz += offset.x * tangent + offset.y * bitangent;
   
-  vertexPos.xyz += normal * 0.001f;
+  vertexPos.xyz += normal * 0.005f;
   
   // View projection
   vOut.posH = mul(matViewProj, vertexPos);

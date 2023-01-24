@@ -354,8 +354,7 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
     color.rgb += envMapLighting.evalDiffuse(sd, bsdf.getProperties(sd));
     color.rgb += envMapLighting.evalSpecular(sd, bsdf.getProperties(sd), reflect(-sd.V, sd.N));
 #endif
-  
-    
+
   float aoFactor = 0.0f;
   if (aoType == AO_TYPE_PER_PIXEL_RTAO)
   {

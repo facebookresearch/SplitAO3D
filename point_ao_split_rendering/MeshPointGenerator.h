@@ -101,6 +101,16 @@ class MeshPointGenerator {
       std::vector<std::vector<uint32_t>>& triangleSampleCountsPerInstance,
       std::vector<std::vector<uint32_t>>& triangleSampleOffsetsPerInstance);
 
+  std::string getPoissonSampleFileName(Falcor::Scene::SharedPtr& scene, uint32_t instanceID);
+
+  bool checkIfPoissonSamplesExist(Falcor::Scene::SharedPtr& scene, uint32_t instanceID);
+
+  void loadPoissonSamples(std::string filePath, std::vector<Falcor::PointData>& output,
+    uint32_t outputOffset);
+
+  void savePoissonSamples(std::string filePath, std::vector<Falcor::PointData>& output,
+    uint32_t outputOffset, uint32_t numSamples);
+
   uint32_t
   getIndex(const std::vector<uint32_t>& indexBuffer, const size_t i, bool use16BitIndices) {
     return use16BitIndices ? reinterpret_cast<const uint16_t*>(indexBuffer.data())[i]
@@ -129,9 +139,9 @@ class MeshPointGenerator {
   Falcor::RtProgram::SharedPtr pointGenRtProgram_;
 
   // Constants for point generation
-  static constexpr uint32_t kNumSamplesPerUnitSquaredEliminated = 2048;
-  static constexpr uint32_t kMinSamplesPerInstance = 2048;
-  static constexpr uint32_t kSamplesEliminatedFactor = 16;
+  static constexpr uint32_t kNumSamplesPerUnitSquaredEliminated = 128;
+  static constexpr uint32_t kMinSamplesPerInstance = 128;
+  static constexpr uint32_t kSamplesEliminatedFactor = 2;
 };
 
 } // namespace split_rendering

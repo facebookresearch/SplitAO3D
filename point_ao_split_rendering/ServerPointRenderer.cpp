@@ -29,10 +29,12 @@ static const float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
 // static const std::string kDefaultScene = "test_scenes/plant.pyscene";
 // static const std::string kDefaultScene = "test_scenes/cube.pyscene";
 // static const std::string kDefaultScene = "test_scenes/chair.pyscene";
-static const std::string kDefaultScene = "test_scenes/arcade_with_animated_things.pyscene";
+//static const std::string kDefaultScene = "test_scenes/arcade_with_animated_things.pyscene";
 // static const std::string kDefaultScene =
 //    "test_scenes/arcade_with_animated_things_fewer_objects.pyscene";
 // static const std::string kDefaultScene = "Arcade/Arcade.pyscene";
+//static const std::string kDefaultScene = "test_scenes/sponza.pyscene";
+static const std::string kDefaultScene = "test_scenes/space.pyscene";
 
 void ServerPointRenderer::onGuiRender(Gui* gui) {
 
@@ -120,6 +122,8 @@ void ServerPointRenderer::setupNetworkCallbacks() {
 
 void ServerPointRenderer::loadScene(const std::filesystem::path& path, const Fbo* targetFbo) {
   auto sceneBuilder = SceneBuilder::create(path);
+
+  // sort meshes by name
 
   scene_ = sceneBuilder->getScene();
   if (!scene_)
@@ -766,8 +770,8 @@ void ServerPointRenderer::onFrameRender(
       renderContext->updateBuffer(gpuFrameUpdateInfo_.get(), &zero, 0, 4);
       renderAOPoints(renderContext);
       pointCellAllocStage_.execute(renderContext, serverHashGen_, pointGen_);
-      pointCellCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
-      pointHashCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
+      //pointCellCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
+      //pointHashCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
     }
     auto rasterVars = rasterPass_->getVars();
     // Update env map lighting
@@ -783,7 +787,7 @@ void ServerPointRenderer::onFrameRender(
 
     // This is the pose we used from the client for rendering, thus also the one for end to end
     // latency.
-    if (false && aoType_ == AO_TYPE_PER_PIXEL_RTAO) {
+    if (aoType_ == AO_TYPE_PER_PIXEL_RTAO) {
       renderRT(renderContext, rtaoFBO_.get());
       renderAOBlur(renderContext, rtaoFBO_.get(), blurredAOFBO_.get());
     }

@@ -79,6 +79,8 @@
 #m.emissiveFactor = 150.0
 
 sceneBuilder.importScene('CesiumMan.gltf')
+sceneBuilder.importScene('CesiumMan3.gltf')
+sceneBuilder.importScene('CesiumMan4.gltf')
 
 # Add environment map
 envMap = EnvMap('20050806-03_hd.hdr')

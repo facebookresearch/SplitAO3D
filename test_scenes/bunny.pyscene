@@ -61,8 +61,8 @@ bunnyMeshID = sceneBuilder.addTriangleMesh(bunnyMesh, white)
 #cubeNodeID = sceneBuilder.addNode('Cube', Transform(scaling=float3(15, 0.2, 0.2), translation=float3(0, 1, -2)))
 #sphereNodeID = sceneBuilder.addNode('Sphere', Transform(scaling=1, translation=float3(3, 1, 0)))
 #customNodeID = sceneBuilder.addNode('Custom', Transform(scaling=1, rotationEulerDeg=float3(0, 45, 0)))
-bunnyNodeID = sceneBuilder.addNode('Bunny2', Transform(scaling=1, translation=float3(0.0, 0.0, 0)))
-bunnyNodeID2 = sceneBuilder.addNode('Bunny', Transform(scaling=1, translation=float3(0.2, -0.3, 0)))
+bunnyNodeID = sceneBuilder.addNode('Bunny2', Transform(scaling=10, translation=float3(0.0, 0.0, 0)))
+bunnyNodeID2 = sceneBuilder.addNode('Bunny', Transform(scaling=1, translation=float3(2.2, -5.3, 0)))
 
 # Add mesh instances to scene graph
 #sceneBuilder.addMeshInstance(quadNodeID, quadMeshID)
