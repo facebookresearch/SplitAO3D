@@ -8,9 +8,12 @@ import Utils.Math.MatrixUtils;
 
 #include "PointAOConstantsShared.slangh"
 
+RWStructuredBuffer<uint> triangleVisibilityDataPerFrame;
+RWStructuredBuffer<uint> triangleVisibilityOffsetData;
 
 cbuffer perFrameConstantBuffer
 {
+  float4x4 extendedViewProjectionMatrix;
   uint sampleIndex;
   float aoRadius;
   int aoSamples;
@@ -26,6 +29,7 @@ struct AORayData
 	float hitT;
 };
 
+/*
 float3 randomSampleCosineHemisphere(PointData pd, float2 rng)
 {
 	float pdf;
@@ -33,7 +37,7 @@ float3 randomSampleCosineHemisphere(PointData pd, float2 rng)
   
   float3 bitangent = cross(pd.normal, pd.tangent);
   return normalize(relativeVec.x * pd.tangent + relativeVec.y * bitangent + relativeVec.z * pd.normal);
-}
+}*/
 
 float3 randomSampleCosineHemisphereSD(ShadingData sd, float2 rng)
 {
@@ -80,7 +84,7 @@ float raytraceAO(ShadingData sd, UniformSampleGenerator sg)
     float3 direction = randomSampleCosineHemisphereSD(sd, float2(sampleNext1D(sg), sampleNext1D(sg)));
 
     RayDesc ray;
-    ray.Origin = sd.posW + sd.N * 0.001f;
+    ray.Origin = sd.posW + sd.N * 0.01f;
     ray.Direction = normalize(direction);
     ray.TMin = 0;
     ray.TMax = aoRadius;
@@ -101,19 +105,23 @@ float raytraceAO(ShadingData sd, UniformSampleGenerator sg)
 [shader("raygeneration")]
 void rayGen()
 {
-    // This shader traces rays from each point and is responsible for determining the changes (value, normal, position) of points. 
-    
+  // This shader traces rays from each point and is responsible for determining the changes (value, normal, position) of points. 
+
   uint3 launchIndex = DispatchRaysIndex();
   
   if (serverAOPoints[launchIndex.x].value < 0)
     return;
   
-  PointData pt = serverAOPoints[launchIndex.x];  
+  PointData pt = serverAOPoints[launchIndex.x];
+
+  //if (triangleVisibilityDataPerFrame[triangleVisibilityOffsetData[pt.instanceId] + pt.instanceTriangleId] == 0)
+  //  return;
   
   const GeometryInstanceID instanceID = { pt.instanceId };
   
   const GeometryInstanceData instance = gScene.getGeometryInstance(instanceID);
   float4x4 worldMat = gScene.loadWorldMatrix(instance.globalMatrixID);
+
   float4x4 shadingWorldMat = gScene.loadWorldMatrix(instance.globalMatrixID);
   float3x3 worldInvTransposeMat = gScene.loadInverseTransposeWorldMatrix(instance.globalMatrixID);
   
@@ -127,14 +135,38 @@ void rayGen()
   
   pt.normal = normalize(mul(gScene.getInverseTransposeWorldMatrix(instanceID), pt.normal));
   ShadingData sd = gScene.materials.prepareShadingData(v, materialID, pt.normal, lod);
-  
+
+  if (!sd.frontFacing && sd.mtl.isDoubleSided())
+  {
+      sd.N = -sd.N;
+  }
+
+  // Transform world space pos with extended view projection matrix
+
+  float4 posNDCExtended = mul(extendedViewProjectionMatrix, float4(sd.posW, 1.0f));
+
+  posNDCExtended /= posNDCExtended.w;
+
+  // check if any coordinate is outside [-1,-1] <-> [1, 1] NDC
+  bool insideExtendedView = true;
+
+  if (posNDCExtended.x < -1 || posNDCExtended.x > 1 || posNDCExtended.y < -1 || posNDCExtended.y > 1 || posNDCExtended.z < -1 || posNDCExtended.z > 1)
+    insideExtendedView = false;
+
+
+  if(!insideExtendedView)
+  {
+    return;
+  }
+
   UniformSampleGenerator sg = UniformSampleGenerator(launchIndex.x, pt.instanceId);
 
   float aoTerm = serverAOPoints[launchIndex.x].value;
-  
-  if(raytracePoints)
+
+  // Only raytrace points if they are rasterized in extended FOV - can do this directly here
+  if(raytracePoints && insideExtendedView)
     aoTerm = raytraceAO(sd, sg);
-  
+
   float diskRadius = DISK_RADIUS_FACTOR * instanceToDiskRadius[pt.instanceId];
   
   InstancePointInfo ipi = instancePointInfo[pt.instanceId];
@@ -174,13 +206,16 @@ void rayGen()
     // If the cell IDs are identical (and no change in value, normal or position was detected), we can early out - no memory management or cell updates necessary
     return;
   }
+
   
   // Update server points
   serverAOPoints[launchIndex.x].value = newValue;
+  // TODO: debug why some points start flickering if we don't return here. probably some memory allocation thing, but still...
+  
   serverAOPoints[launchIndex.x].position = newPosition;
   serverAOPoints[launchIndex.x].normal = newNormal;
   // Tangent is used for visualization only
-  serverAOPoints[launchIndex.x].tangent = normalize(mul(sd.T, worldInvTransposeMat)); 
+  //serverAOPoints[launchIndex.x].tangent = //normalize(mul(sd.T, worldInvTransposeMat)); 
   
   InterlockedAdd(frameUpdateInfo[0].numChangedPoints, 1);
   
@@ -189,7 +224,7 @@ void rayGen()
   
   uint baseHashOffset = newHashData.hashBase + ihf.hashToBucketOffset;
   uint oldBaseHashOffset = oldHashData.hashBase + ihf.hashToBucketOffset;
-  
+
   if(newHashData.rawCellId != oldHashData.rawCellId)
   {
     cellDirtyRange = 2;

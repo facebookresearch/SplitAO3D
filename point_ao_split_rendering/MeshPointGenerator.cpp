@@ -118,6 +118,7 @@ float MeshPointGenerator::getTotalSurfaceArea(
     uint32_t vertexOffset,
     uint32_t numTriangles,
     bool use16BitIndices,
+    uint32_t instanceID,
     std::vector<float>& outTriangleAreas) {
   double triangleAreaTotal = 0.0f;
   uint32_t numPlacedSamples = 0;
@@ -125,8 +126,24 @@ float MeshPointGenerator::getTotalSurfaceArea(
 
   outTriangleAreas.resize(numTriangles);
 
+  uint32_t tri_idx = 0;
+
   // NOTE: This could be easily parallelized
   for (uint32_t idxStart = indexOffset; idxStart < indexOffset + numTriangles * 3; idxStart += 3) {
+
+    //if ((idxStart / 3) < cpuTriangleVisibility_.size() && cpuTriangleVisibility_[idxStart / 3] == 0)
+    //  continue;
+    if (instanceID < cpuTriangleVisibilityOffsets_.size() &&
+        (tri_idx + cpuTriangleVisibilityOffsets_[instanceID]) < cpuTriangleVisibility_.size() &&
+        cpuTriangleVisibility_[tri_idx + cpuTriangleVisibilityOffsets_[instanceID]] == 0)
+    {
+      instanceTriangleIndex++;
+      tri_idx++;
+      continue;
+    }
+
+    tri_idx++;
+
     Falcor::float3 vertices[3] = {
         vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart, use16BitIndices)].position,
         vertexBuffer[vertexOffset + getIndex(indexBuffer, idxStart + 1, use16BitIndices)].position,
@@ -154,6 +171,7 @@ std::vector<uint32_t> MeshPointGenerator::getNumSamplesPerTriangle(
     bool use16BitIndices,
     bool isDoubleSided,
     float totalSurfaceArea,
+    uint32_t instanceID,
     uint32_t* numPlacedSamples) {
   static SeededRandom seededRandom;
   std::uniform_real_distribution<float> uniformRand(0.0, 1.0);
@@ -172,6 +190,7 @@ std::vector<uint32_t> MeshPointGenerator::getNumSamplesPerTriangle(
 
   // NOTE: this loop could be parallelized
   for (uint32_t tri_idx = 0; tri_idx < triangleSamples.size(); tri_idx++) {
+
     triangleSamples[tri_idx] = kMinSamplesPerTriangle;
     actualSamples += kMinSamplesPerTriangle;
 
@@ -179,6 +198,13 @@ std::vector<uint32_t> MeshPointGenerator::getNumSamplesPerTriangle(
       triangleSamples[tri_idx] += kMinSamplesPerTriangle;
       actualSamples += kMinSamplesPerTriangle;
     }
+
+    
+    if (instanceID < cpuTriangleVisibilityOffsets_.size() &&
+        (tri_idx + cpuTriangleVisibilityOffsets_[instanceID]) < cpuTriangleVisibility_.size() &&
+        cpuTriangleVisibility_[tri_idx + cpuTriangleVisibilityOffsets_[instanceID]] == 0)
+      continue;
+
 
     float weightedProbability = triangleAreas[tri_idx] * rcpTriAreaTotal;
     float intPart;
@@ -188,8 +214,26 @@ std::vector<uint32_t> MeshPointGenerator::getNumSamplesPerTriangle(
     actualSamples += (uint32_t) intPart;
   }
 
+
+  uint32_t rand_loop_cnt = 0;
   while (actualSamples < numSamples) {
     uint32_t randomIdx = (uint32_t)(uniformRand(seededRandom.random_engine) * numTriangles);
+
+    uint32_t tri_idx = randomIdx;
+
+    rand_loop_cnt++;
+
+    // Can't find anything, just add samples to random for this instance
+    if (rand_loop_cnt < 10000) {
+      if (instanceID < cpuTriangleVisibilityOffsets_.size() &&
+          (tri_idx + cpuTriangleVisibilityOffsets_[instanceID]) < cpuTriangleVisibility_.size() &&
+          cpuTriangleVisibility_[tri_idx + cpuTriangleVisibilityOffsets_[instanceID]] == 0)
+        continue;
+    } else {
+      
+    }
+
+
     triangleSamples[randomIdx]++;
     actualSamples++;
   }
@@ -209,9 +253,9 @@ void MeshPointGenerator::computeSampleCounts(
     std::vector<uint32_t>& uniformSamplesOffset,
     uint32_t& numSamplesTotal,
     uint32_t& numUniformSamplesTotal) {
-  constexpr uint32_t kMinUniformSamplesPerInstance =
+  const uint32_t kMinUniformSamplesPerInstance =
       kMinSamplesPerInstance * kSamplesEliminatedFactor;
-  constexpr uint32_t kNumSamplesPerUnitSquaredUniform =
+  const uint32_t kNumSamplesPerUnitSquaredUniform =
       kNumSamplesPerUnitSquaredEliminated * kSamplesEliminatedFactor;
 
   auto& sceneData = scene->getSceneData();
@@ -246,6 +290,7 @@ void MeshPointGenerator::computeSampleCounts(
         instance.vbOffset,
         meshDesc.indexCount / 3,
         use16Bit,
+        instanceId,
         instanceTriangleAreas));
 
     if (sampleOffsetPerInstance_.empty()) {
@@ -291,6 +336,7 @@ void MeshPointGenerator::computeSampleCounts(
         use16Bit,
         isDoubleSided,
         totalSurfaceAreas.back(),
+        instanceId,
         &numPlacedSamples);
 
     numSamplesTotal += numSamplesPerInstance_.back();
@@ -439,6 +485,10 @@ std::string MeshPointGenerator::getPoissonSampleFileName(Falcor::Scene::SharedPt
 
 bool MeshPointGenerator::checkIfPoissonSamplesExist(Falcor::Scene::SharedPtr& scene, uint32_t instanceID)
 {
+  // TODO HACK
+
+  return false;
+
   return std::filesystem::exists(getPoissonSampleFileName(scene, instanceID));
 }
 

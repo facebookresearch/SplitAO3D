@@ -227,6 +227,8 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
   int3 intBaseCoords = floatCoords - 0.5f;
   
   AOSamplingWeight samplingWeight = initSamplingWeight();
+
+  int number_of_hit_cells = 0;
   
   for (int x = 0; x <= 1; x++)
   {
@@ -247,6 +249,8 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
 
         if (pointCellIndex < 0)
           continue;
+
+        number_of_hit_cells++;
         
         // Iterate over point cell and get all contributions
         uint pointOffset = 0;
@@ -259,17 +263,19 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
           
           ClientPointData cpd = decompressClientData(compressedClientAOPoints[offsetIndex], coords, sp.diskRadius, ipi.aabbMin);
 
-          PointData pd = serverAOPoints[offsetIndex];
-          cpd.position = pd.position;
-          cpd.normal = pd.normal;
-          cpd.value = pd.value;
-
+          //PointData pd = serverAOPoints[offsetIndex];
+          //cpd.position = pd.position;
+          //cpd.normal = pd.normal;
+          //cpd.value = pd.value;
           
           applySamplingWeight(samplingWeight, sp, cpd, cosDeltaThreshold, cosNormalThreshold);
         }
       }
     }
   }
+
+  if(number_of_hit_cells == 0)
+    return 1.0f;
   
   if(samplingWeight.weightSum == 0.0f)
     return clamp(samplingWeight.fallbackValueSum / samplingWeight.fallbackWeightSum, 0.0f, 1.0f);
@@ -355,6 +361,7 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
     color.rgb += envMapLighting.evalSpecular(sd, bsdf.getProperties(sd), reflect(-sd.V, sd.N));
 #endif
 
+
   float aoFactor = 0.0f;
   if (aoType == AO_TYPE_PER_PIXEL_RTAO)
   {
@@ -387,7 +394,8 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
   }
   else if (colorOnly)
   {
-    return float4(color, 1.0f);
+    
+  return float4(sd.posW, 1.0f);
   }
   else
   {

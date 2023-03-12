@@ -21,6 +21,9 @@ void PointHashGenerator::generate(
         std::ceil(std::log2((numFinalSamplesPerInstance[instanceId] / FIXED_HASH_BUCKET_SIZE))) +
         HASH_LOG2_SIZE_FACTOR);
 
+    
+    hashTableSize = std::max(hashTableSize, (uint32_t)FIXED_HASH_BUCKET_SIZE);
+
     const auto& ipi = instancePointInfos[instanceId];
 
     std::vector<int32_t> instanceHashTable(hashTableSize, -1);

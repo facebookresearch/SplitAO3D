@@ -13,31 +13,30 @@
 #include <execution>
 #include "FLIPScreenshotComparison.h"
 #include "LZ4Compression.h"
-#include "ZSTDCompression.h"
-#include "Utils/Threading.h"
-#include "Utils/Math/Matrix.h"
 #include "Utils/Math/FalcorMath.h"
+#include "Utils/Math/Matrix.h"
+#include "Utils/Threading.h"
 #include "Utils/UI/TextRenderer.h"
+#include "ZSTDCompression.h"
 
-//using namespace rlr_streaming;
+// using namespace rlr_streaming;
 
 namespace split_rendering {
 
-static const float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
-//static const std::string kDefaultScene = "test_scenes/skinned.pyscene";
- //static const std::string kDefaultScene = "test_scenes/bunny.pyscene";
+static const float4 kClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+// static const std::string kDefaultScene = "test_scenes/skinned.pyscene";
+// static const std::string kDefaultScene = "test_scenes/bunny.pyscene";
 // static const std::string kDefaultScene = "test_scenes/plant.pyscene";
 // static const std::string kDefaultScene = "test_scenes/cube.pyscene";
 // static const std::string kDefaultScene = "test_scenes/chair.pyscene";
-//static const std::string kDefaultScene = "test_scenes/arcade_with_animated_things.pyscene";
+// static const std::string kDefaultScene = "test_scenes/arcade_with_animated_things.pyscene";
 // static const std::string kDefaultScene =
-//    "test_scenes/arcade_with_animated_things_fewer_objects.pyscene";
+//  "test_scenes/arcade_with_animated_things_fewer_objects.pyscene";
 // static const std::string kDefaultScene = "Arcade/Arcade.pyscene";
-//static const std::string kDefaultScene = "test_scenes/sponza.pyscene";
-static const std::string kDefaultScene = "test_scenes/space.pyscene";
+// static const std::string kDefaultScene = "test_scenes/sponza.pyscene";
+// static const std::string kDefaultScene = "test_scenes/space.pyscene";
 
 void ServerPointRenderer::onGuiRender(Gui* gui) {
-
   if (noGUI_)
     return;
 
@@ -63,7 +62,7 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
   w.checkbox("Send Messages", sendMessages_);
   w.var("AO samples", aoSamples_, 1, 4096);
   w.var("AO radius", aoRadius_, 0.001f, 5.0f);
-  ssao_->setSampleRadius(aoRadius_);
+  // ssao_->setSampleRadius(aoRadius_);
   w.var("Neighbors", numNeighbors_, 1, 16);
   w.var("Int. Radius Mult", interpolationRadiusFactor_, 0.1f, 5.0f);
   w.var("AO filter kernel", aoKernel_, 1, 10);
@@ -80,7 +79,7 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
   w.var("cos(delta) threshold", cosDeltaThreshold_, 0.0f, 1.0f);
   w.var("update: cos(N) threshold", updateDeltaCosThreshold, 0.0f, 1.0f);
   w.var("update: delta(pos) threshold", updateDeltaPosFactor, 0.0f, (float)POINT_POS_MAX);
-  w.var("update: delta(val) threshold", updateDeltaValFactor, 0.0f, (float)POINT_VAL_MAX);
+  w.var("update: delta(val) threshold", updateDeltaValFactor, 0.0f, (float)512.0f);
 
   if (pointCloudVisualizationPass_)
     pointCloudVisualizationPass_->renderUI(w);
@@ -91,48 +90,50 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
 }
 
 void ServerPointRenderer::setupNetworkCallbacks() {
+  /*
+server_.setReceiveCallback(TCPMessageType::HmdStateMessage, [&](TCPMessage&& message) {
+  HmdState* state = (HmdState*)message.data.data();
 
-    /*
-  server_.setReceiveCallback(TCPMessageType::HmdStateMessage, [&](TCPMessage&& message) {
-    HmdState* state = (HmdState*)message.data.data();
+  if (scene_)
+    scene_->onHmdEvent(*state);
+});
 
-    if (scene_)
-      scene_->onHmdEvent(*state);
-  });
+server_.setReceiveCallback(
+    TCPMessageType::ClientResolutionChangeMessage, [&](TCPMessage&& message) {
+      onResizeSwapChain(message.header.width, message.header.height);
+    });
 
-  server_.setReceiveCallback(
-      TCPMessageType::ClientResolutionChangeMessage, [&](TCPMessage&& message) {
-        onResizeSwapChain(message.header.width, message.header.height);
-      });
+server_.setReceiveCallback(TCPMessageType::PAOEndOfInit, [&](TCPMessage&& message) {
+  gpFramework->getGlobalClock().setFrame(0);
+  gpFramework->getGlobalClock().setTime(0);
+  clientInitDone_ = true;
+});
 
-  server_.setReceiveCallback(TCPMessageType::PAOEndOfInit, [&](TCPMessage&& message) {
-    gpFramework->getGlobalClock().setFrame(0);
-    gpFramework->getGlobalClock().setTime(0);
-    clientInitDone_ = true;
-  });
+server_.setReceiveCallback(TCPMessageType::CameraPoseMessage, [&](TCPMessage&& message) {
+  CameraPoseData* data = (CameraPoseData*)message.data.data();
 
-  server_.setReceiveCallback(TCPMessageType::CameraPoseMessage, [&](TCPMessage&& message) {
-    CameraPoseData* data = (CameraPoseData*)message.data.data();
-
-    camera_->setHeadPosition(data->headPos);
-    camera_->setUpVector(data->upVec);
-    camera_->setHeadTarget(data->headTarget);
-  });*/
+  camera_->setHeadPosition(data->headPos);
+  camera_->setUpVector(data->upVec);
+  camera_->setHeadTarget(data->headTarget);
+});*/
 }
 
 void ServerPointRenderer::loadScene(const std::filesystem::path& path, const Fbo* targetFbo) {
   auto sceneBuilder = SceneBuilder::create(path);
-
+  lastShadedTime_ = std::chrono::high_resolution_clock::now();
   // sort meshes by name
 
   scene_ = sceneBuilder->getScene();
   if (!scene_)
     return;
 
+  loadCameraPath();
+  initTriangleVisibilityBuffer();
+
   // Init network compression stuff
   // TODO: switch via config file or something
   networkCompression_ = std::make_unique<ZSTDCompression>(15, 4, 0);
-  //networkCompression_ = std::make_unique<LZ4Compression>();
+  // networkCompression_ = std::make_unique<LZ4Compression>();
   useCompression_ = true;
 
   camera_ = scene_->getCamera();
@@ -143,15 +144,17 @@ void ServerPointRenderer::loadScene(const std::filesystem::path& path, const Fbo
   // Update the controllers
   float radius = length(scene_->getSceneBounds().extent());
   scene_->setCameraSpeed(radius * 0.25f);
-  float nearZ = std::max(0.01f, radius / 75000.0f);
-  float farZ = radius * 10;
+  float nearZ = 0.1f;
+  //std::max(0.01f, radius / 75000.0f);
+  float farZ = 4000.0f;
+  //radius * 10;
   camera_->setDepthRange(nearZ, farZ);
   camera_->setAspectRatio((float)targetFbo->getWidth() / (float)targetFbo->getHeight());
 
-  //rasterPass_ = RasterScenePass::create(
+  // rasterPass_ = RasterScenePass::create(
   //    scene_, "Samples/FalcorServer/FinalCompositePointAO.ps.slang", "vsMain", "main");
-  //rasterPass_->getProgram()->setTypeConformances(typeConformances);
-  //rasterPass_->getProgram()->setGenerateDebugInfoEnabled(true);
+  // rasterPass_->getProgram()->setTypeConformances(typeConformances);
+  // rasterPass_->getProgram()->setGenerateDebugInfoEnabled(true);
 
   // Get scene defines. These need to be set on any program using the scene.
   auto defines = scene_->getSceneDefines();
@@ -176,10 +179,21 @@ void ServerPointRenderer::loadScene(const std::filesystem::path& path, const Fbo
   depthNormalsProgDesc.addTypeConformances(typeConformances);
   depthNormalsPrepass_ = RasterScenePass::create(scene_, depthNormalsProgDesc, defines);
   depthNormalsPrepass_->getProgram()->setGenerateDebugInfoEnabled(true);
+  auto depthDesc = DepthStencilState::Desc();
+  depthDesc.setDepthFunc(DepthStencilState::Func::LessEqual);
+  depthNormalsPrepass_->getState()->setDepthStencilState(DepthStencilState::create(depthDesc));
 
   Sampler::Desc desc;
   desc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear);
   rasterPass_->getVars()["mainSampler"] = Sampler::create(desc);
+
+  Program::Desc vertAnimProgDesc;
+  vertAnimProgDesc.addShaderModules(shaderModules);
+  vertAnimProgDesc.addShaderLibrary("Samples/FalcorServer/VertexAnimationExport.cs.slang")
+      .csEntry("main");
+  vertAnimProgDesc.addTypeConformances(typeConformances);
+  vertexAnimationComputePass_ = ComputePass::create(vertAnimProgDesc, defines);
+  vertexAnimationComputePass_->getProgram()->setGenerateDebugInfoEnabled(true);
 
   computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
   computePass_->getProgram()->setGenerateDebugInfoEnabled(true);
@@ -266,7 +280,7 @@ void ServerPointRenderer::firstFrameInit(RenderContext* renderContext) {
     msg.header.width = 0;
     msg.header.height = 0;
     msg.header.timestamp = gpFramework->getGlobalClock().getTime() + simulatedLatencySec_;
-    //server_.send(msg);
+    // server_.send(msg);
   };
 
   send_vector_message(
@@ -294,7 +308,7 @@ void ServerPointRenderer::firstFrameInit(RenderContext* renderContext) {
     msg.header.size = 0;
     msg.header.width = 0;
     msg.header.height = 0;
-    //server_.send(msg);
+    // server_.send(msg);
   }
 }
 
@@ -306,6 +320,7 @@ void ServerPointRenderer::setupPointStructures(RenderContext* renderContext) {
 
   serverHashGen_.generate(scene_, pointGen_);
 
+  /*
   kdTreeGen_.generate(
       scene_,
       pointGen_,
@@ -315,7 +330,7 @@ void ServerPointRenderer::setupPointStructures(RenderContext* renderContext) {
       scene_,
       pointGen_,
       serverHashGen_.getCPUPointCells(),
-      serverHashGen_.getCPUInstancePointInfo());
+      serverHashGen_.getCPUInstancePointInfo());*/
 
   pointCloudVisualizationPass_ = PointCloudVisualizationPass::create(nullptr, {});
 
@@ -332,28 +347,28 @@ void ServerPointRenderer::setupAutomatedScreenshots() {
   // Camera positions, new camera setups can be exported with the "Minus" key
   automatedCameraSetups_ = {
       [&]() {
-        //camera_->setHeadPosition(glm::vec3(-1.682712, 1.612922, 3.208458));
-        //camera_->setHeadTarget(glm::vec3(-1.097630, 1.206952, 2.506413));
+        // camera_->setHeadPosition(glm::vec3(-1.682712, 1.612922, 3.208458));
+        // camera_->setHeadTarget(glm::vec3(-1.097630, 1.206952, 2.506413));
         camera_->setUpVector(glm::vec3(0.001629, 0.999997, -0.001951));
-      }, 
+      },
       [&]() {
-        //camera_->setHeadPosition(glm::vec3(-1.372512, 0.599973, 0.306184));
-        //camera_->setHeadTarget(glm::vec3(-1.355760, 0.419115, -0.677182));
+        // camera_->setHeadPosition(glm::vec3(-1.372512, 0.599973, 0.306184));
+        // camera_->setHeadTarget(glm::vec3(-1.355760, 0.419115, -0.677182));
         camera_->setUpVector(glm::vec3(0.000000, 1.000000, 0.000000));
       },
       [&]() {
-        //camera_->setHeadPosition(glm::vec3(0.370434, 0.570594, 1.203125));
-        //camera_->setHeadTarget(glm::vec3(0.289852, 0.664340, 0.210795));
+        // camera_->setHeadPosition(glm::vec3(0.370434, 0.570594, 1.203125));
+        // camera_->setHeadTarget(glm::vec3(0.289852, 0.664340, 0.210795));
         camera_->setUpVector(glm::vec3(0.000224, 0.999996, 0.002757));
       },
       [&]() {
-        //camera_->setHeadPosition(glm::vec3(-1.259848, 0.272437, -0.148128));
-        //camera_->setHeadTarget(glm::vec3(-0.893683, -0.123221, -0.990374));
+        // camera_->setHeadPosition(glm::vec3(-1.259848, 0.272437, -0.148128));
+        // camera_->setHeadTarget(glm::vec3(-0.893683, -0.123221, -0.990374));
         camera_->setUpVector(glm::vec3(-0.000676, 0.999999, 0.001559));
       },
       [&]() {
-        //camera_->setHeadPosition(glm::vec3(-1.742759, 0.183640, -0.475140));
-        //camera_->setHeadTarget(glm::vec3(-0.846588, 0.121357, -0.914456));
+        // camera_->setHeadPosition(glm::vec3(-1.742759, 0.183640, -0.475140));
+        // camera_->setHeadTarget(glm::vec3(-0.846588, 0.121357, -0.914456));
         camera_->setUpVector(glm::vec3(-0.001659, 0.999998, 0.000813));
       },
   };
@@ -499,19 +514,182 @@ void ServerPointRenderer::setupAutomatedScreenshots() {
   }
 }
 
+void ServerPointRenderer::loadCameraPath() {
+  std::string filename = args_.get<std::string>("--camera_path");
+
+  std::ifstream file(filename, std::ios::binary);
+
+  if (!file.is_open())
+    return;
+
+  int count = 0;
+  file.read(reinterpret_cast<char*>(&count), sizeof(int));
+
+  cameraPathMatrices_.resize(count);
+
+  file.read(reinterpret_cast<char*>(cameraPathMatrices_.data()), sizeof(glm::mat4) * count);
+
+  file.close();
+}
+
+void ServerPointRenderer::initTriangleVisibilityBuffer() {
+  const auto instanceCount = scene_->getGeometryInstanceCount();
+
+  instanceTriangleVisibilityOffsets_.resize(instanceCount);
+
+  uint32_t triangleCount = 0;
+  // Based on the total surface area, we can compute the number of samples that we want to have
+  // If we have that, we can parallelize the generation
+  for (uint32_t instanceId = 0; instanceId < instanceCount; instanceId++) {
+    const auto& instance = scene_->getGeometryInstance(instanceId);
+    const auto& meshDesc = scene_->getMesh(Falcor::MeshID{instance.geometryID});
+    instanceTriangleVisibilityOffsets_[instanceId] = triangleCount;
+    triangleCount += meshDesc.getTriangleCount();
+  }
+
+  triangleVisibilityData_ = Falcor::Buffer::createStructured(
+      sizeof(uint32_t),
+      triangleCount,
+      Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+      Falcor::Buffer::CpuAccess::None);
+
+  triangleVisibilityDataPerFrame_ = Falcor::Buffer::createStructured(
+      sizeof(uint32_t),
+      triangleCount,
+      Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+      Falcor::Buffer::CpuAccess::None);
+
+  triangleVisibilityOffsetData_ = Falcor::Buffer::createStructured(
+      sizeof(uint32_t),
+      instanceTriangleVisibilityOffsets_.size(),
+      Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+      Falcor::Buffer::CpuAccess::None,
+      instanceTriangleVisibilityOffsets_.data());
+
+  auto path = scene_->getPath().filename().string() +
+      std::filesystem::path{args_.get<std::string>("--camera_path")}.filename().string() +
+      "_visibility.bin";
+
+  std::ifstream file(path, std::ios::binary);
+
+  if (file.is_open()) {
+    file.unsetf(std::ios::skipws);
+
+    // get length of file
+    file.seekg(0, std::ios::end);
+    size_t length = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    cpuTriangleVisibilityData_.resize(length / sizeof(uint32_t));
+
+    file.read((char*)cpuTriangleVisibilityData_.data(), length);
+
+    pointGen_.cpuTriangleVisibility_ = cpuTriangleVisibilityData_;
+    pointGen_.cpuTriangleVisibilityOffsets_ = instanceTriangleVisibilityOffsets_;
+
+    triangleVisibilityDataTest_ = Falcor::Buffer::createStructured(
+        sizeof(uint32_t),
+        cpuTriangleVisibilityData_.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        cpuTriangleVisibilityData_.data());
+
+    int a = 3;
+  } else {
+    triangleVisibilityDataTest_ = Falcor::Buffer::createStructured(
+        sizeof(uint32_t),
+        triangleCount,
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None);
+  }
+}
+
+void ServerPointRenderer::saveTriangleVisibilityBuffer() {
+  auto path = scene_->getPath().filename().string() +
+      std::filesystem::path{args_.get<std::string>("--camera_path")}.filename().string() +
+      "_visibility.bin";
+
+  std::ofstream file(path, std::ios::binary);
+
+  // Get buffer data to cpu
+
+  if (file.is_open()) {
+    const char* buffer_data = (const char*)triangleVisibilityData_->map(Buffer::MapType::Read);
+
+    file.write(buffer_data, triangleVisibilityData_->getSize());
+    file.flush();
+    file.close();
+  } else {
+    std::cout << "didn't write visibility data" << std::endl;
+  }
+}
+
+void ServerPointRenderer::shutdown() {
+  saveTriangleVisibilityBuffer();
+  Threading::shutdown();
+
+  // Write .csv of profiling stuff
+
+  if (profilingStats_.size() > 0) {
+    {
+      std::fstream csv;
+      csv.open(outputDirectory_ + "/float_stats.csv ", std::ios::out);
+      if (csv.is_open()) {
+        for (const auto& header : profilingStats_[0].profilingStages_)
+          csv << header.name_ << ",";
+
+        csv << "\n";
+
+        for (const auto& stats : profilingStats_) {
+          for (const auto& float_tuple : stats.profilingStages_)
+            csv << float_tuple.val_ << ",";
+
+          csv << "\n";
+        }
+      }
+
+      csv.flush();
+      csv.close();
+    }
+
+    {
+      std::fstream csv;
+      csv.open(outputDirectory_ + "/int_stats.csv ", std::ios::out);
+      if (csv.is_open()) {
+        for (const auto& header : profilingStats_[0].networkDataStages_)
+          csv << header.name_ << ",";
+
+        csv << "\n";
+
+        for (const auto& stats : profilingStats_) {
+          for (const auto& float_tuple : stats.networkDataStages_)
+            csv << float_tuple.val_ << ",";
+
+          csv << "\n";
+        }
+      }
+
+      csv.flush();
+      csv.close();
+    }
+  }
+
+  exit(0);
+}
+
 void ServerPointRenderer::onLoad(RenderContext* renderContext) {
   if (gpDevice->isFeatureSupported(Device::SupportedFeatures::Raytracing) == false) {
     logFatal("Device does not support raytracing!");
   }
 
-  loadScene(kDefaultScene, gpFramework->getTargetFbo().get());
+  loadScene(args_.get<std::string>("--scene"), gpFramework->getTargetFbo().get());
 
   Dictionary ssao_dict;
   ssao_dict["aoMapSize"] = uint2(512, 512);
-  ssao_ = SSAO::create(renderContext, ssao_dict, scene_);
-  ssao_->setAOMapSize(uint2(512, 512));
+  // ssao_ = SSAO::create(renderContext, ssao_dict, scene_);
+  // ssao_->setAOMapSize(uint2(512, 512));
 
-  //server_.startThreads();
+  // server_.startThreads();
 }
 
 void ServerPointRenderer::sendMessages(RenderContext* renderContext) {
@@ -560,7 +738,7 @@ void ServerPointRenderer::sendMessages(RenderContext* renderContext) {
         }
 
         msg.header.timestamp = gpFramework->getGlobalClock().getTime() + simulatedLatencySec_;
-        //server_.send(msg);
+        // server_.send(msg);
       };
 
   send_vector_message(
@@ -570,7 +748,7 @@ void ServerPointRenderer::sendMessages(RenderContext* renderContext) {
   // We send back the message after we are done rendering.
   if (latencyMessage_.header.type == TCPMessageType::LatencyMeasureMessage) {
     latencyMessage_.header.timestamp += simulatedLatencySec_;
-    //server_.send(latencyMessage_);
+    // server_.send(latencyMessage_);
     latencyMessage_.header.type = TCPMessageType::NumberOfMessageTypes;
   }
 }
@@ -579,7 +757,7 @@ void ServerPointRenderer::receiveMessages() {
   FALCOR_PROFILE("receiveMessages");
   TCPMessage msg;
 
-  //while (server_.tryPopFront(msg)) {
+  // while (server_.tryPopFront(msg)) {
   //  if (msg.header.type == TCPMessageType::LatencyMeasureMessage) {
   //    latencyMessage_ = msg;
   //  }
@@ -618,21 +796,8 @@ void ServerPointRenderer::renderRT(RenderContext* renderContext, const Fbo* targ
   }
 }
 
-void ServerPointRenderer::renderAOPoints(RenderContext* renderContext) {
+void ServerPointRenderer::renderAOPoints(RenderContext* renderContext, uint32_t raytracingEnabled) {
   FALCOR_PROFILE("renderAOPoints");
-
-  uint32_t raytracingEnabled = 0;
-  float currentTime = gpFramework->getGlobalClock().getTime();
-
-  if ((currentTime - lastRaytracingTimestamp_) >= (1.0f / raytracingFramerate_)) {
-    raytracingEnabled = 1;
-    lastRaytracingTimestamp_ = currentTime;
-  }
-
-  // If the screenshotting automation is running, we always raytrace
-  if (screenshotHelper_.isRunning()) {
-    raytracingEnabled = 1;
-  }
 
   auto constantBuffer = pointAOVars_["perFrameConstantBuffer"];
   constantBuffer["sampleIndex"] = sampleIndex_++;
@@ -645,6 +810,8 @@ void ServerPointRenderer::renderAOPoints(RenderContext* renderContext) {
 
   pointAOVars_["frameUpdateInfo"] = gpuFrameUpdateInfo_;
   pointAOVars_["serverAOPoints"] = serverHashGen_.getGPUPointCells();
+  pointAOVars_->setBuffer("triangleVisibilityDataPerFrame", triangleVisibilityDataPerFrame_);
+  pointAOVars_->setBuffer("triangleVisibilityOffsetData", triangleVisibilityOffsetData_);
   pointAOVars_["compressedClientAOPoints"] = serverHashGen_.getGPUCompressedClientPointCells();
   pointAOVars_["instancePointInfo"] = serverHashGen_.getGPUInstancePointInfo();
   pointAOVars_["instanceToDiskRadius"] = pointGen_.getGPUDiskRadiusPerInstance();
@@ -661,6 +828,20 @@ void ServerPointRenderer::renderAOPoints(RenderContext* renderContext) {
   pointAOVars_["cellDirtyInfos"] = pointCellCreateNetworkBufferStage_.getDirtyCellInfoBuffer();
   pointAOVars_["hashDirtyInfos"] = pointHashCreateNetworkBufferStage_.getDirtyHashInfoBuffer();
 
+  // Get extended FOV camera
+  auto old_focal = camera_->getFocalLength();
+
+  camera_->setFocalLength(old_focal * 0.8f);
+
+  auto extended_vp = camera_->getViewProjMatrix();
+
+  camera_->setFocalLength(old_focal);
+
+  // Refresh view params
+  camera_->getViewProjMatrix();
+
+  constantBuffer["extendedViewProjectionMatrix"] = extended_vp;
+
   scene_->raytrace(
       renderContext,
       pointAORaytraceProgram.get(),
@@ -668,6 +849,9 @@ void ServerPointRenderer::renderAOPoints(RenderContext* renderContext) {
       uint3(serverHashGen_.getGPUPointCells()->getElementCount(), 1, 1));
 
   frameUpdateInfo_ = *(PerFrameUpdateInfo*)gpuFrameUpdateInfo_->map(Buffer::MapType::Read);
+
+  profilingStats_.back().networkDataStages_.push_back(
+      {"numChangedPoints", frameUpdateInfo_.numChangedPoints});
 
   if (gpFramework->getGlobalClock().getFrame() > 100) {
     minNumPointsChanged_ = std::min(frameUpdateInfo_.numChangedPoints, minNumPointsChanged_);
@@ -745,16 +929,79 @@ void ServerPointRenderer::onFrameRender(
 
   screenshotHelper_.beginFrame();
 
-  // We only run the framerate limiting code if we are not running in the "automated screenshotting"
-  // mode
-  if (!screenshotHelper_.isRunning()) {
-    if ((gpFramework->getGlobalClock().getTime() - lastServerTimeStamp_) <
-        (1.0f / serverFramerate_)) {
-      return;
+  // Always limit to max. 120 FPS
+
+  auto currentShadedTime = std::chrono::high_resolution_clock::now();
+  auto durationShading = currentShadedTime - lastShadedTime_;
+  float dur = std::chrono::duration_cast<std::chrono::duration<float>>(durationShading).count();
+
+  if ((dur) < (1.0f / 120.0f)) {
+    return;
+  }
+  lastShadedTime_ = currentShadedTime;
+
+  // Update camera if we have a prerecorded path
+
+  if (!cameraPathMatrices_.empty()) {
+    rmcv::mat4 view = cameraPathMatrices_[frameCount_ % cameraPathMatrices_.size()].getTranspose();
+    rmcv::mat4 inv_view = rmcv::inverse(view);
+    // Falcor doesn't set position when setting a view matrix for some reason
+    // camera_->setPosition(view.getCol(3).xyz);
+    camera_->setViewMatrix(view);
+
+    float3 pos = inv_view.getCol(3);
+    float3 fwd = -inv_view.getCol(2);
+    float3 up = inv_view.getCol(1);
+
+    camera_->setPosition(pos);
+    camera_->setUpVector(up);
+    camera_->setTarget(pos + fwd);
+
+    // camera_->updateFromAnimation(view);
+    // updateFromAnimation
+    // camera_->setTarget(camera_->getPosition() + camera_->getViewMatrix()[2].xyz);
+    // camera_->setUpVector(camera_->getViewMatrix()[1].xyz);
+
+    if (frameCount_ == cameraPathMatrices_.size() && exitAfterCameraPath_) {
+      shutdown();
     }
   }
 
+  if (fixedFrameTime > 0) {
+    gpFramework->getGlobalClock().setFrame(frameCount_++);
+    gpFramework->getGlobalClock().setTime(fixedFrameTime * frameCount_);
+  }
+
+  // We only run the framerate limiting code if we are not running in the "automated screenshotting"
+  // mode
+  // if (!screenshotHelper_.isRunning()) {
+  //  if ((gpFramework->getGlobalClock().getTime() - lastServerTimeStamp_) <
+  //      (1.0f / serverFramerate_)) {
+  //    return;
+  //  }
+  // }
+
   lastServerTimeStamp_ = gpFramework->getGlobalClock().getTime();
+
+  uint32_t raytracingEnabled = 0;
+  float currentTime = gpFramework->getGlobalClock().getTime();
+
+  if ((currentTime - lastRaytracingTimestamp_) >=
+      (1.0f / raytracingFramerate_) - fixedFrameTime * 0.5f) {
+    raytracingEnabled = 1;
+    lastRaytracingTimestamp_ = currentTime;
+  }
+
+  // If the screenshotting automation is running, we always raytrace
+  if (screenshotHelper_.isRunning()) {
+    raytracingEnabled = 1;
+  }
+
+  profilingStats_.push_back(ProfilingStats());
+  profilingStats_.back().profilingStages_.push_back({"frame_time", lastServerTimeStamp_});
+  profilingStats_.back().networkDataStages_.push_back({"frame_number", frameCount_});
+  profilingStats_.back().networkDataStages_.push_back(
+      {"number_of_points", (int64_t)pointGen_.getCPUPointData().size()});
 
   auto start = std::chrono::high_resolution_clock::now();
   renderContext->clearFbo(screenshotFBO_.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
@@ -763,15 +1010,71 @@ void ServerPointRenderer::onFrameRender(
     double sceneTime = gpFramework->getGlobalClock().getTime();
 
     scene_->update(renderContext, sceneTime + simulatedLatencySec_);
-
+    auto start_server_total = std::chrono::high_resolution_clock::now();
     if (raytraceAOPoints_) {
       // only update the first portion that tracks the number of changed points per frame
       PerFrameUpdateInfo zero = {0, 0};
       renderContext->updateBuffer(gpuFrameUpdateInfo_.get(), &zero, 0, 4);
-      renderAOPoints(renderContext);
-      pointCellAllocStage_.execute(renderContext, serverHashGen_, pointGen_);
-      //pointCellCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
-      //pointHashCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
+
+      {
+        auto start_server = std::chrono::high_resolution_clock::now();
+
+        renderAOPoints(renderContext, raytracingEnabled);
+
+        renderContext->flush();
+        auto end_server = std::chrono::high_resolution_clock::now();
+        auto duration_server_sec =
+            std::chrono::duration_cast<std::chrono::duration<float>>(end_server - start_server)
+                .count();
+
+        profilingStats_.back().profilingStages_.push_back(
+            {"server_render_ao_points", duration_server_sec});
+      }
+
+      {
+        auto start_server = std::chrono::high_resolution_clock::now();
+
+        pointCellAllocStage_.execute(renderContext, serverHashGen_, pointGen_);
+
+        renderContext->flush();
+        auto end_server = std::chrono::high_resolution_clock::now();
+        auto duration_server_sec =
+            std::chrono::duration_cast<std::chrono::duration<float>>(end_server - start_server)
+                .count();
+
+        profilingStats_.back().profilingStages_.push_back(
+            {"server_point_cell_alloc", duration_server_sec});
+      }
+
+      {
+        auto start_server = std::chrono::high_resolution_clock::now();
+
+        pointCellCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
+
+        renderContext->flush();
+        auto end_server = std::chrono::high_resolution_clock::now();
+        auto duration_server_sec =
+            std::chrono::duration_cast<std::chrono::duration<float>>(end_server - start_server)
+                .count();
+
+        profilingStats_.back().profilingStages_.push_back(
+            {"server_point_cell_network_buffer", duration_server_sec});
+      }
+
+      {
+        auto start_server = std::chrono::high_resolution_clock::now();
+
+        pointHashCreateNetworkBufferStage_.execute(renderContext, serverHashGen_, pointGen_);
+
+        renderContext->flush();
+        auto end_server = std::chrono::high_resolution_clock::now();
+        auto duration_server_sec =
+            std::chrono::duration_cast<std::chrono::duration<float>>(end_server - start_server)
+                .count();
+
+        profilingStats_.back().profilingStages_.push_back(
+            {"server_point_hash_network_buffer", duration_server_sec});
+      }
     }
     auto rasterVars = rasterPass_->getVars();
     // Update env map lighting
@@ -787,7 +1090,7 @@ void ServerPointRenderer::onFrameRender(
 
     // This is the pose we used from the client for rendering, thus also the one for end to end
     // latency.
-    if (aoType_ == AO_TYPE_PER_PIXEL_RTAO) {
+    if (aoType_ == AO_TYPE_PER_PIXEL_RTAO && raytracingEnabled) {
       renderRT(renderContext, rtaoFBO_.get());
       renderAOBlur(renderContext, rtaoFBO_.get(), blurredAOFBO_.get());
     }
@@ -805,10 +1108,146 @@ void ServerPointRenderer::onFrameRender(
       }
     }
 
+    auto end_server_total = std::chrono::high_resolution_clock::now();
+
+    auto duration_server_total_sec = std::chrono::duration_cast<std::chrono::duration<float>>(
+                                         end_server_total - start_server_total)
+                                         .count();
+
+    profilingStats_.back().profilingStages_.push_back({"server_render", duration_server_total_sec});
+
     // TODO/Hack: this is essentially the same hack as on the client side - we use the previous
     // frame's transformations to store the transformations with the simulated latency. This is a
     // bit wasteful, but should not be too bad.
     scene_->update(renderContext, sceneTime);
+
+    std::vector<uint32_t> zeros(triangleVisibilityDataPerFrame_->getSize() / sizeof(uint32_t));
+    triangleVisibilityDataPerFrame_->setBlob(
+        zeros.data(), 0, triangleVisibilityDataPerFrame_->getSize());
+    // TODO: rasterize a depth prepass, rasterize triangle IDs into a buffer that we can export
+    auto prepassVars = depthNormalsPrepass_->getVars();
+    // auto constantBuffer = prepassVars["perFrameConstantBuffer"];
+    // constantBuffer["aoOnly"] = aoOnly_;
+    // prepassVars["serverAOPoints"] = serverHashGen_.getGPUPointCells();
+
+    auto prepassCBuffer = prepassVars["perFrameConstantBuffer"];
+
+    prepassVars->setBuffer("triangleVisibilityData", triangleVisibilityData_);
+    prepassVars->setBuffer("triangleVisibilityDataPerFrame", triangleVisibilityDataPerFrame_);
+    prepassVars->setBuffer("triangleVisibilityDataTest", triangleVisibilityDataTest_);
+    prepassVars->setBuffer("triangleVisibilityOffsetData", triangleVisibilityOffsetData_);
+    renderContext->clearFbo(visibilityFBO_.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
+    prepassCBuffer["isSecondPass"] = false;
+
+    depthNormalsPrepass_->renderScene(renderContext, visibilityFBO_);
+
+    prepassCBuffer["isSecondPass"] = true;
+
+    depthNormalsPrepass_->renderScene(renderContext, visibilityFBO_);
+
+    if (exportVertexAnims_) {
+      auto vertexAnimPassVars = vertexAnimationComputePass_->getVars();
+      const Buffer::SharedPtr& pVB = scene_->getMeshVao()->getVertexBuffer(0);
+      vertexAnimPassVars->setParameterBlock("gScene", scene_->getParameterBlock());
+
+      auto vertexAnimPassCB = vertexAnimPassVars["perFrameConstantBuffer"];
+      vertexAnimPassVars["skinnedVertices"] = pVB;
+      // constantBuffer["kernelSize"] = aoKernel_;
+
+      uint32_t instanceOffset = 0;
+      const auto instanceCount = scene_->getGeometryInstanceCount();
+      const auto& matrices = scene_->getAnimationController()->getGlobalMatrices();
+
+      std::vector<bool> is_really_dynamic(instanceCount);
+
+      if (vSavers_.empty()) {
+        vSavers_.resize(instanceCount);
+        instanceMatrices_.resize(matrices.size());
+
+        for (auto& instance_matrix : instanceMatrices_) {
+          std::memset(instance_matrix.data(), 0, sizeof(instance_matrix));
+        }
+      }
+
+      for (uint32_t instanceId = 0; instanceId < instanceCount; instanceId++) {
+        auto& vSaver = vSavers_[instanceId];
+        const auto& instance = scene_->getGeometryInstance(instanceId);
+        const auto& mesh = scene_->getMesh(MeshID{instance.geometryID});
+
+        const auto matrix_id = instance.globalMatrixID;
+        const auto& instance_matrix = matrices[matrix_id];
+
+        if (instanceMatrices_[matrix_id] == instance_matrix && !mesh.isDynamic()) {
+          // continue;
+        } else {
+          vSaver.number_of_changed_frames++;
+        }
+
+        // if (!mesh.isDynamic())
+        //{
+        //  continue;
+        //}
+
+        instanceMatrices_[matrix_id] = instance_matrix;
+        // if (!(mesh.isDynamic() || mesh.isAnimated()))
+        //  continue;
+
+        uint32_t offset = mesh.vbOffset;
+        uint32_t vertexCount = mesh.vertexCount;
+
+        vertexAnimPassCB["instID"] = instanceId;
+        vertexAnimPassCB["vertexOffset"] = offset;
+        vertexAnimPassCB["vertexCount"] = vertexCount;
+
+        Falcor::Buffer::SharedPtr resultVertices = Buffer::createStructured(
+            sizeof(PackedStaticVertexData),
+            vertexCount,
+            ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            Buffer::CpuAccess::None);
+        vertexAnimPassVars["outputVertices"] = resultVertices;
+
+        vertexAnimationComputePass_->execute(renderContext, {vertexCount, 1, 1});
+
+        renderContext->flush(true);
+
+        PackedStaticVertexData* result_cpu =
+            (PackedStaticVertexData*)resultVertices->map(Buffer::MapType::Read);
+
+        // TODO: multiple instances?
+        uint32_t cpu_buffer_offset = vSaver.vertex_data.size();
+        vSaver.vertex_data.resize(vSaver.vertex_data.size() + vertexCount);
+        std::memcpy(
+            vSaver.vertex_data.data() + cpu_buffer_offset,
+            result_cpu,
+            sizeof(PackedStaticVertexData) * vertexCount);
+
+        vSaver.number_of_frames++;
+
+        resultVertices->unmap();
+      }
+
+      if (exportVertexAnimFrameLimit > 0 && frameCount_ == exportVertexAnimFrameLimit) {
+        for (uint32_t instanceId = 0; instanceId < instanceCount; instanceId++) {
+          auto& vSaver = vSavers_[instanceId];
+          const auto& instance = scene_->getGeometryInstance(instanceId);
+          const auto& mesh = scene_->getMesh(MeshID{instance.geometryID});
+
+          if (vSaver.number_of_changed_frames < 10)
+            continue;
+
+          std::string filename = "vertex_anim_" +
+              scene_->getMaterial(Falcor::MaterialID{instance.materialID})->getName();
+          std::string sceneName = scene_->getPath().filename().replace_extension("").string();
+          filename += std::to_string(instanceId);
+          filename += sceneName;
+          filename += ".bin";
+
+          vSaver.save(filename.c_str());
+        }
+
+        shutdown();
+      }
+    }
 
     auto constantBuffer = rasterVars["perFrameConstantBuffer"];
     constantBuffer["aoOnly"] = aoOnly_;
@@ -818,6 +1257,7 @@ void ServerPointRenderer::onFrameRender(
     constantBuffer["interpolationRadiusFactor"] = interpolationRadiusFactor_;
     constantBuffer["cosNormalThreshold"] = cosNormalThreshold_;
     constantBuffer["cosDeltaThreshold"] = cosDeltaThreshold_;
+
     rasterVars["serverAOPoints"] = serverHashGen_.getGPUPointCells();
     rasterVars["compressedClientAOPoints"] = serverHashGen_.getGPUCompressedClientPointCells();
     rasterVars["instanceToDiskRadius"] = pointGen_.getGPUDiskRadiusPerInstance();
@@ -836,15 +1276,17 @@ void ServerPointRenderer::onFrameRender(
     auto kdTreeConstantBuffer = rasterVars["kdTreeConstantBuffer"];
     kdTreeConstantBuffer["numNeighbors"] = numNeighbors_;
 
-    /*
-    rasterPass_->renderScene(renderContext, screenshotFBO_, [&](EyeType eye) {
-      rasterVars["aoTex"] = blurredAOFBO_->getColorTexture(0, eye);
-      rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0, eye);
-    });*/
-
     rasterVars["aoTex"] = blurredAOFBO_->getColorTexture(0);
-    rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0);
+    // rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0);
+
+    auto start_client = std::chrono::high_resolution_clock::now();
     rasterPass_->renderScene(renderContext, screenshotFBO_);
+    renderContext->flush();
+    auto end_client = std::chrono::high_resolution_clock::now();
+    auto duration_client_sec =
+        std::chrono::duration_cast<std::chrono::duration<float>>(end_client - start_client).count();
+
+    profilingStats_.back().profilingStages_.push_back({"client_render", duration_client_sec});
 
     if (pointViz_) {
       visualizePoints(renderContext, screenshotFBO_);
@@ -852,10 +1294,56 @@ void ServerPointRenderer::onFrameRender(
 
     renderContext->blit(
         screenshotFBO_->getColorTexture(0)->getSRV(), targetFbo->getRenderTargetView(0));
+
+    // renderContext->blit(
+    //     visibilityFBO_->getColorTexture(0)->getSRV(), targetFbo->getRenderTargetView(0));
   }
 
   if (sendMessages_)
     sendMessages(renderContext);
+  else {
+    // Simply compress & measure
+
+    auto start_compress = std::chrono::high_resolution_clock::now();
+
+    auto point_cell_update_vec =
+        pointCellCreateNetworkBufferStage_.getNetworkCellUpdateInfo(renderContext);
+
+    auto point_hash_update_vec =
+        pointHashCreateNetworkBufferStage_.getNetworkHashUpdateInfo(renderContext);
+
+    uint32_t numCompressedBytes = 0;
+
+    uint32_t inputNumBytes = point_cell_update_vec.size() *
+        sizeof(std::remove_reference_t<decltype(point_cell_update_vec)>::value_type);
+
+    std::vector<uint8_t> dummy;
+
+    numCompressedBytes =
+        networkCompression_->compressData(point_cell_update_vec.data(), dummy, inputNumBytes);
+
+    profilingStats_.back().networkDataStages_.push_back(
+        {"point_cell_update_bytes", numCompressedBytes});
+
+    inputNumBytes = point_hash_update_vec.size() *
+        sizeof(std::remove_reference_t<decltype(point_hash_update_vec)>::value_type);
+
+    numCompressedBytes =
+        networkCompression_->compressData(point_hash_update_vec.data(), dummy, inputNumBytes);
+
+    profilingStats_.back().networkDataStages_.push_back(
+        {"point_hash_update_bytes", numCompressedBytes});
+
+    auto end_compress = std::chrono::high_resolution_clock::now();
+
+    auto compress_duration =
+        std::chrono::duration_cast<std::chrono::duration<float>>(end_compress - start_compress)
+            .count();
+
+    profilingStats_.back().profilingStages_.push_back({"server_compression", compress_duration});
+
+    // std::cout << "num compressed MB: " << numCompressedBytes / 1000000.0f << std::endl;
+  }
 
   if (!noGUI_)
     TextRenderer::render(renderContext, gpFramework->getFrameRate().getMsg(), targetFbo, {20, 20});
@@ -869,30 +1357,45 @@ void ServerPointRenderer::onFrameRender(
       duration_sec * movingAverageFactor_ + smoothedRenderTime_ * (1.0f - movingAverageFactor_);
 
   screenshotHelper_.endFrame();
+
+  if (args_.get<bool>("--export_images")) {
+    std::stringstream ss;
+    ss << std::setw(10) << std::setfill('0') << frameCount_ - 1;
+    std::string s = ss.str();
+    screenshotFBO_->getColorTexture(0)->captureToFile(
+        0, 0, screenshotOutputDirectory_ + s + ".png");
+  }
 }
 
 bool ServerPointRenderer::onKeyEvent(const KeyboardEvent& keyEvent) {
   if (keyEvent.type == KeyboardEvent::Type::KeyReleased) {
+    if (keyEvent.key == Input::Key::Slash) {
+      screenshotFBO_->getColorTexture(0)->captureToFile(0, 0, "ao_test.png");
+    }
 
-      /*
-    if (keyEvent.key == KeyboardEvent::Key::Minus) {
-      // Export current cam position / orientation
+    if (keyEvent.key == Input::Key::V) {
+      saveTriangleVisibilityBuffer();
+    }
 
-      std::string cameraDumpStr = "";
+    /*
+  if (keyEvent.key == KeyboardEvent::Key::Minus) {
+    // Export current cam position / orientation
 
-      const auto& headPos = camera_->getHeadPosition();
-      const auto& headTarget = camera_->getHeadTarget();
-      const auto& upVec = camera_->getUpVector();
+    std::string cameraDumpStr = "";
 
-      cameraDumpStr += "camera_->setHeadPosition(glm::" + glm::to_string(headPos) + ");\n";
-      cameraDumpStr += "camera_->setHeadTarget(glm::" + glm::to_string(headTarget) + ");\n";
-      cameraDumpStr += "camera_->setUpVector(glm::" + glm::to_string(upVec) + ");\n";
+    const auto& headPos = camera_->getHeadPosition();
+    const auto& headTarget = camera_->getHeadTarget();
+    const auto& upVec = camera_->getUpVector();
 
-      logWarning("Camera dump: ");
-      logWarning(cameraDumpStr);
+    cameraDumpStr += "camera_->setHeadPosition(glm::" + glm::to_string(headPos) + ");\n";
+    cameraDumpStr += "camera_->setHeadTarget(glm::" + glm::to_string(headTarget) + ");\n";
+    cameraDumpStr += "camera_->setUpVector(glm::" + glm::to_string(upVec) + ");\n";
 
-      screenshotFBO_->getColorTexture(0)->captureToFile(0, 0, "texture.png");
-    } else */
+    logWarning("Camera dump: ");
+    logWarning(cameraDumpStr);
+
+    screenshotFBO_->getColorTexture(0)->captureToFile(0, 0, "texture.png");
+  } else */
 
     if (keyEvent.key == Input::Key::Equal) {
       // Setup screenshot helper
@@ -912,7 +1415,7 @@ bool ServerPointRenderer::onKeyEvent(const KeyboardEvent& keyEvent) {
         msg.header.size = 0;
         msg.header.width = 0;
         msg.header.height = 0;
-        //server_.send(msg);
+        // server_.send(msg);
       }
     } else if (keyEvent.key == Input::Key::N) {
       noGUI_ = !noGUI_;
@@ -938,10 +1441,11 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
   float h = (float)height;
   float w = (float)width;
 
-  ssao_->setAOMapSize(uint2(width, height));
+  // ssao_->setAOMapSize(uint2(width, height));
 
   if (camera_) {
     camera_->setFocalLength(18);
+    auto fovy = focalLengthToFovY(camera_->getFocalLength(), Camera::kDefaultFrameHeight);
     float aspectRatio = (w / h);
     camera_->setAspectRatio(aspectRatio);
   }
@@ -949,6 +1453,7 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
   rtaoFBO_ = Fbo::create();
   screenshotFBO_ = Fbo::create();
   blurredAOFBO_ = Fbo::create();
+  visibilityFBO_ = Fbo::create();
 
   for (EyeType eye : kAllEyes) {
     if (eye == kEyeRight && !stereoServer_)
@@ -977,7 +1482,7 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
     texScreenshot_[eye] = Texture::create2D(
         width,
         height,
-        ResourceFormat::BGRA8UnormSrgb,
+        ResourceFormat::BGRA8Unorm,
         1,
         1,
         nullptr,
@@ -992,11 +1497,33 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
         nullptr,
         Resource::BindFlags::ShaderResource | Resource::BindFlags::DepthStencil);
 
+    texVisibility_[eye] = Texture::create2D(
+        width,
+        height,
+        ResourceFormat::BGRA8Unorm,
+        1,
+        1,
+        nullptr,
+        Resource::BindFlags::ShaderResource | Resource::BindFlags::RenderTarget);
+
+    texVisibilityDepth_[eye] = Texture::create2D(
+        width,
+        height,
+        ResourceFormat::D32Float,
+        1,
+        1,
+        nullptr,
+        Resource::BindFlags::ShaderResource | Resource::BindFlags::DepthStencil);
+
     // Attach textures for each eye to FBO
     rtaoFBO_->attachColorTarget(texAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel);
     blurredAOFBO_->attachColorTarget(texBlurredAO_[eye], 0, 0, 0, Fbo::kAttachEntireMipLevel);
     screenshotFBO_->attachColorTarget(texScreenshot_[eye], 0);
     screenshotFBO_->attachDepthStencilTarget(texDepth_[eye], 0, 0, Fbo::kAttachEntireMipLevel);
+
+    visibilityFBO_->attachColorTarget(texVisibility_[eye], 0);
+    visibilityFBO_->attachDepthStencilTarget(
+        texVisibilityDepth_[eye], 0, 0, Fbo::kAttachEntireMipLevel);
   }
 }
 

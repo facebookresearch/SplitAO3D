@@ -26,14 +26,18 @@ void PointServerHashGenerator::generate(
         std::ceil(std::log2((numFinalSamplesPerInstance[instanceId] / FIXED_HASH_BUCKET_SIZE))) +
         HASH_LOG2_SIZE_FACTOR);
 
+    hashTableSize = std::max(hashTableSize, (uint32_t)FIXED_HASH_BUCKET_SIZE);
+
     // Conservatively use 4x the average number of cells to preallocate memory for cells
     uint32_t numCells = (uint32_t) ((numFinalSamplesPerInstance[instanceId] / DISK_RADIUS_FACTOR) *
         NUM_CELLS_PREALLOCATION_FACTOR);
 
+    numCells = std::max(numCells, 1U);
+
     if (scene->getGeometryInstance(instanceId).isDynamic()) {
       // More memory for dynamic instances - this will make things easier when updating (= adding
       // more cells) later
-      numCells *= 4;
+      numCells *= 8;
     }
 
     instanceHashInfo_.push_back({});

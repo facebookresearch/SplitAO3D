@@ -65,6 +65,7 @@ set(SHADERS
   PointHashUpdateStage.cs.slang
   CompositeClient.ps.slang
   ClientCompositePointAO.ps.slang
+  VertexAnimationExport.cs.slang
   )
 
 #falcor_sample(
@@ -147,6 +148,7 @@ add_falcor_executable(FalcorServer)
 #add_falcor_executable(HelloDXR)
 
 target_sources(FalcorServer PRIVATE
+  argparse.hpp
   BinaryMessageType.h
   MeshPointGenerator.h
   MeshPointGenerator.cpp
