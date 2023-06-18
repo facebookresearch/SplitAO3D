@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "Utils/Math/MathConstants.slangh"
 #include "PointAOConstantsShared.slangh"
 import Scene.Shading;
@@ -106,4 +107,3 @@ void applySamplingWeight(inout AOSamplingWeight samplingWeight, AOShadingPoint s
 }
 
 
-  

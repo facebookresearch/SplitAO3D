@@ -80,12 +80,28 @@ SSAO::SSAO(const Scene::SharedPtr& scene) : RenderPass(kInfo), scene_(scene) {
   composeData_.Fbo = Fbo::create();
 
   auto typeConformances = scene_->getTypeConformances();
-  depthNormalsPrepass_ =
-      RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "vsMain", "main");
-  depthNormalsPrepass_->getProgram()->setTypeConformances(typeConformances);
+  auto defines = scene_->getSceneDefines();
+  //depthNormalsPrepass_ =
+  //    RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "vsMain", "main");
+  //depthNormalsPrepass_->getProgram()->setTypeConformances(typeConformances);
+  auto shaderModules = scene_->getShaderModules();
+  Program::Desc depthNormalsProgDesc;
+  depthNormalsProgDesc.addShaderModules(shaderModules);
+  depthNormalsProgDesc.addShaderLibrary("Samples/FalcorServer/DepthNormals.ps.slang")
+    .vsEntry("vsMain")
+    .psEntry("main");
+  depthNormalsProgDesc.addTypeConformances(typeConformances);
+  depthNormalsPrepass_ = RasterScenePass::create(scene_, depthNormalsProgDesc, defines);
+  depthNormalsPrepass_->getProgram()->setGenerateDebugInfoEnabled(true);
+  //auto depthDesc = DepthStencilState::Desc();
+  //depthDesc.setDepthFunc(DepthStencilState::Func::LessEqual);
+  //depthNormalsPrepass_->getState()->setDepthStencilState(DepthStencilState::create(depthDesc));
+
 
   computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
-  computePass_->getProgram()->setTypeConformances(typeConformances);
+  computePass_->getProgram()->setGenerateDebugInfoEnabled(true);
+  //computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
+  //computePass_->getProgram()->setTypeConformances(typeConformances);
 }
 
 SSAO::SharedPtr
@@ -154,6 +170,9 @@ void SSAO::renderDepthNormalsPrepass(
   renderContext->clearFbo(targetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
   // Per-eye should already work here if the FBO has an attachment per eye.
   //depthNormalsPrepass_->renderScene(renderContext, targetFbo, [&](EyeType eye) {});
+  auto prepassVars = depthNormalsPrepass_->getVars();
+  auto prepassCBuffer = prepassVars["perFrameConstantBuffer"];
+  prepassCBuffer["isSecondPass"] = false;
   depthNormalsPrepass_->renderScene(renderContext, targetFbo);
 }
 

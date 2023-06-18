@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 import Scene.Raytracing;
 import Scene.SceneTypes;
 import Utils.Sampling.UniformSampleGenerator;

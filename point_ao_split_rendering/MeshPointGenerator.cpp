@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "MeshPointGenerator.h"
 #include <glm/gtx/matrix_decompose.hpp>
 #include <algorithm>

@@ -1,26 +1,9 @@
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
-// Example usage:
-// clang-format off
-// $ ./bin/Release/FalcorServer.exe -signaling_server_address 192.168.86.217 -signaling_server_port 8888 -ice_protocol udp -ice_port 8000
-// clang-format on
-
-// (c) Meta Platforms, Inc. and its affiliates. Confidential and proprietary.
-
-//#include <rlr_streaming/transport/tcp/TcpServer.h>
-
-//#include <gflags/gflags.h>
-//#include <glog/logging.h>
+// (c) Meta Platforms, Inc. and its affiliates
 
 #include "NetworkServer.h"
-//#include "ServerScreenSpaceRenderer.h"
 #include "ServerPointRenderer.h"
-//#include "samples/Flags.h"
 
 #include <Falcor.h>
-//#include <glog/logging.h>
-//#include <rlr_streaming/streaming/WebrtcStreamingApi.h>
-//#include <rlr_streaming/transport/tcp/TcpServer.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -29,19 +12,8 @@
 #include <atomic>
 #include <thread>
 
-// using rlr_streaming::IceProtocol;
-// using rlr_streaming::VideoCodec;
-// using rlr_streaming::WebrtcPeerInit;
-// using rlr_streaming::WebrtcStreamingApi;
 using split_rendering::NetworkServer;
-// using split_rendering::ServerScreenSpaceRenderer;
 using split_rendering::ServerPointRenderer;
-
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
-// Based on
-// shared\third-party\Falcor\4.1\Falcor\Source\Samples\HelloDXR\HelloDXR.h
-
 #pragma once
 
 #include "NetworkServer.h"
@@ -62,12 +34,6 @@ using split_rendering::ServerPointRenderer;
 using namespace Falcor;
 
 int main(int argc, char** argv) {
-  // google::InitGoogleLogging(argv[0]);
-  // google::InstallFailureSignalHandler();
-  // gflags::ParseCommandLineFlags(&argc, &argv, true);
-
-  // LOG(INFO) << "Starting ...";
-
   argparse::ArgumentParser args("pbao_server_main");
 
   args.add_argument("--output_dir")
@@ -76,14 +42,14 @@ int main(int argc, char** argv) {
 
   args.add_argument("--scene")
       .help("path to pyscene file")
-      .default_value("test_scenes/sponza.pyscene");
+      .default_value("test_scenes/arcade_with_animated_things.pyscene");
 
   args.add_argument("--camera_path")
       .help("path to a camera trajectory (.bin) file")
       .default_value("");
 
   args.add_argument("--selected_renderer")
-      .help("which renderer to selet (PBAO, RTAO, SSAO)")
+      .help("which renderer to select (PBAO, RTAO, SSAO)")
       .default_value("PBAO");
 
   args.add_argument("--exit_after_camera_path")

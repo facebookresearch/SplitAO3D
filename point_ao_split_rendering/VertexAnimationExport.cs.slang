@@ -1,4 +1,4 @@
-
+// (c) Meta Platforms, Inc. and its affiliates
 import Scene.Shading;
 import Scene.Raster;
 import Scene.SceneTypes;

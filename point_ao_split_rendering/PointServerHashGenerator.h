@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 
 #include <Falcor.h>
@@ -36,9 +37,9 @@ class PointServerHashGenerator {
     return gpuInstancePointInfo_;
   }
 
-  Falcor::Buffer::SharedPtr& getGPUPointCells() {
-    return gpuPointCells_;
-  }
+  //Falcor::Buffer::SharedPtr& getGPUPointCells() {
+  //  return gpuPointCells_;
+  //}
 
   Falcor::Buffer::SharedPtr& getGPUCompressedClientPointCells() {
     return gpuCompressedClientPointCells_;
@@ -80,12 +81,34 @@ class PointServerHashGenerator {
     return compactHashToPointCell_;
   }
 
+  Falcor::Buffer::SharedPtr gpuPositions_;
+  Falcor::Buffer::SharedPtr gpuNormals_;
+  Falcor::Buffer::SharedPtr gpuTangents_;
+  Falcor::Buffer::SharedPtr gpuBarycentrics_;
+  Falcor::Buffer::SharedPtr gpuInstanceTriangleIDs_;
+  Falcor::Buffer::SharedPtr gpuInstanceIDs_;
+  Falcor::Buffer::SharedPtr gpuValues_;
+
  private:
   Falcor::Buffer::SharedPtr gpuHashToPointCell_;
   Falcor::Buffer::SharedPtr gpuHashNumBuckets_;
   Falcor::Buffer::SharedPtr gpuInstanceHashInfo_;
   Falcor::Buffer::SharedPtr gpuInstancePointInfo_;
   Falcor::Buffer::SharedPtr gpuPointCells_;
+  
+
+
+
+
+  // float3 position;
+  // float3 normal;
+  // float3 tangent;
+  // float2 barycentrics;
+  // uint instanceTriangleId;
+  // uint instanceId;
+  // float value;
+
+
   Falcor::Buffer::SharedPtr gpuCompressedClientPointCells_;
   Falcor::Buffer::SharedPtr gpuPreviousCompressedClientPointCells_;
   Falcor::Buffer::SharedPtr gpuPointUpdateData_;

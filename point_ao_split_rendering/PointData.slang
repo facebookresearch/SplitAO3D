@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 #include "Utils/HostDeviceShared.slangh"
 #include "PointAOConstantsShared.slangh"
@@ -83,11 +84,11 @@ ClientPointData decompressClientData(CompressedClientPointData ccpd, uint3 gridI
 
 #endif
 
-inline CompressedClientPointData compressClientData(PointData cpd, float gridCellSize, float3 aabbMin)
+inline CompressedClientPointData compressClientData(float3 position, float3 normal, float value, float gridCellSize, float3 aabbMin)
 {
   CompressedClientPointData ccpd;
   
-  float3 localCellPosition = (((cpd.position - (aabbMin))) / gridCellSize);
+  float3 localCellPosition = (((position - (aabbMin))) / gridCellSize);
   
 #ifdef HOST_CODE
   float3 remainderVec = localCellPosition - float3((int)localCellPosition.x, (int)localCellPosition.y, (int)localCellPosition.z);
@@ -96,8 +97,8 @@ inline CompressedClientPointData compressClientData(PointData cpd, float gridCel
   uint3 localCellUint = uint3(round((localCellPosition - int3(localCellPosition)) * POINT_POS_MAX));
 #endif
   ccpd.posNormVal = localCellUint.x | (localCellUint.y << (POINT_POS_BITS)) | (localCellUint.z << (2 * POINT_POS_BITS));
-  ccpd.posNormVal |= (octahedral8(cpd.normal) & NORMAL_MAX) << (POINT_POS_BITS * 3);
-  ccpd.posNormVal |= (uint(cpd.value * POINT_VAL_MAX) & POINT_VAL_MAX) << (NORMAL_BITS + POINT_POS_BITS * 3);
+  ccpd.posNormVal |= (octahedral8(normal) & NORMAL_MAX) << (POINT_POS_BITS * 3);
+  ccpd.posNormVal |= (uint(value * POINT_VAL_MAX) & POINT_VAL_MAX) << (NORMAL_BITS + POINT_POS_BITS * 3);
  
   return ccpd;
 }
@@ -229,8 +230,26 @@ struct HashUpdateInfo
   CompactHashToCellInfo hashData[FIXED_HASH_BUCKET_SIZE];
 };
 
+
+struct ResultSet
+{
+  uint count;
+  uint indices[NUM_KNN_NEIGHBORS];
+  float dists[NUM_KNN_NEIGHBORS];
+  float cosDists[NUM_KNN_NEIGHBORS];
+  float maxDist;
+};
+
+
 #ifndef HOST_CODE
-RWStructuredBuffer<PointData> serverAOPoints;
+//RWStructuredBuffer<PointData> serverAOPoints;
+RWStructuredBuffer<float3> serverAOPositions;
+RWStructuredBuffer<float3> serverAONormals;
+RWStructuredBuffer<float3> serverAOTangents;
+RWStructuredBuffer<float2> serverAOBarycentrics;
+RWStructuredBuffer<uint> serverAOInstanceTriangleIDs;
+RWStructuredBuffer<uint> serverAOInstanceIDs;
+RWStructuredBuffer<float> serverAOValues;
 RWStructuredBuffer<CompressedClientPointData> compressedClientAOPoints;
 RWStructuredBuffer<CompressedClientPointData> previousCompressedClientAOPoints;
 RWStructuredBuffer<PerFrameUpdateInfo> frameUpdateInfo;

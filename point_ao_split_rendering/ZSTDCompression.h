@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 #include "NetworkCompressionBase.h"
 #include "zstd.h"

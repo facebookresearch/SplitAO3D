@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointHashGenerator.h"
 #include <algorithm>
 #include <execution>

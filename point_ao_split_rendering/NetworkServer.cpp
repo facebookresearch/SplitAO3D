@@ -1,5 +1,4 @@
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
+// (c) Meta Platforms, Inc. and its affiliates
 #include "NetworkServer.h"
 
 namespace split_rendering {

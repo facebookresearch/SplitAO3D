@@ -1,7 +1,15 @@
-// Copyright (c) Facebook
+// (c) Meta Platforms, Inc. and its affiliates
 import PointData;
 
-StructuredBuffer<PointData> gpuPoints;
+//StructuredBuffer<PointData> gpuPoints;
+
+//StructuredBuffer<float3> serverAOPositions;
+//StructuredBuffer<float3> serverAONormals;
+//StructuredBuffer<float3> serverAOTangents;
+//RWStructuredBuffer<float2> serverAOBarycentrics;
+//RWStructuredBuffer<uint> serverAOInstanceTriangleIDs;
+//RWStructuredBuffer<uint> serverAOInstanceIDs;
+//StructuredBuffer<float> serverAOValues;
 
 cbuffer perFrameConstantBuffer : register(b0)
 {
@@ -27,8 +35,8 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   // Look up position stored in the point data buffer and transform with world matrix
   uint quadId = (vertexId) / 6 + instanceOffset;
   uint quadVertexId = vertexId % 6;
-  //float4 vertexPos = mul(float4(gpuPoints[quadId].position, 1), meshDesc);
-  float4 vertexPos = mul(meshDesc, float4(gpuPoints[quadId].position, 1));
+  //float4 vertexPos = mul(float4(serverAOPositions[quadId], 1), meshDesc);
+  float4 vertexPos = mul(meshDesc, float4(serverAOPositions[quadId], 1));
   
   
   // Compute world space offset based on tangent and bitangent
@@ -49,7 +57,7 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   
   
   // Transform normal, tangent and compute bitangent
-  float3 normal = normalize(mul((float3x3) (invTransposemeshDesc), gpuPoints[quadId].normal));
+  float3 normal = normalize(mul((float3x3) (invTransposemeshDesc), serverAONormals[quadId]));
 
   float3 tangent;
   float3 t1 = cross( normal, float3(0.0, 0.0, -1.0) );
@@ -64,7 +72,7 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   }
 
   
-  //float3 tangent = normalize(mul((float3x3) meshDesc, gpuPoints[quadId].tangent));
+  //float3 tangent = normalize(mul((float3x3) meshDesc, serverAOTangents[quadId]));
 
   float3 bitangent = normalize(cross(normal, tangent));
   
@@ -77,14 +85,14 @@ PointQuadVertex vsMain(uint vertexId : SV_VertexID)
   vOut.posH = mul(matViewProj, vertexPos);
   
   // Show the value stored in the point structure
-  vOut.value = gpuPoints[quadId].value;
+  vOut.value = serverAOValues[quadId];
   
   vOut.N = normal;
   
   // Invalid gpuPoints are set to NaN and then subsequently culled.
-  if (gpuPoints[quadId].value < 0)
+  if (serverAOValues[quadId] < 0)
     vOut.posH = float4(asfloat(0x7fc00000u /* nan */), asfloat(0x7fc00000u /* nan */), asfloat(0x7fc00000u /* nan */), asfloat(0x7fc00000u /* nan */));
- // if (gpuPoints[quadId].value < 0)
+ // if (serverAOValues[quadId] < 0)
  //   vOut.value = -1234.0;
   
   return vOut;

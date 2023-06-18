@@ -1,17 +1,10 @@
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 
-//#include <rlr_streaming/transport/tcp/TcpBase.h>
-//#include <rlr_streaming/transport/tcp/TcpServer.h>
-//#include "TCPNetworkBase.h"
-
-//#include <gflags/gflags.h>
-//#include <glog/logging.h>
 #include <thread>
 #include "BinaryMessageType.h"
 
-class ServerEventHandler //: public rlr_streaming::TcpEventHandler {
+class ServerEventHandler 
 {
  public:
   ~ServerEventHandler() {}

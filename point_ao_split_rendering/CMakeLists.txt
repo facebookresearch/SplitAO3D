@@ -5,21 +5,10 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
 
-#set(FALCOR_ROOT_DIRECTORY
-#    "${CMAKE_CURRENT_SOURCE_DIR}/../../../shared/third-party/Falcor/5.0/Falcor")
-#set(FALCOR_MOGWAILIBS
-#    ON
-#    CACHE BOOL "" FORCE)
-#add_subdirectory("${FALCOR_ROOT_DIRECTORY}" Falcor)
-
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-#set(CMAKE_MODULE_PATH "${FALCOR_ROOT_DIRECTORY}/cmake" ${CMAKE_MODULE_PATH})
 set(LZ4_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../lz4_win64_v1_9_4")
 set(LZ4_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../lz4_win64_v1_9_4/static/liblz4_static.lib")
 set(ZSTD_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../zstd-v1.5.2-win64")
 set(ZSTD_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../zstd-v1.5.2-win64/static/libzstd_static.lib")
-
-#include(FalcorUtility)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../split_rendering/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../poisson_sampling/)
@@ -28,20 +17,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../flip/)
 include_directories(${ZSTD_DIRECTORY}/include/)
 include_directories(${LZ4_DIRECTORY}/include/)
 
-#if(WIN32)
-  # In order to use just main(), not WinMain() on Windows
-  # https://stackoverflow.com/questions/45724766/how-to-set-c-application-entry-point-to-main-on-windows-using-cmake
-#  set(CMAKE_EXE_LINKER_FLAGS
-#      "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
-#endif()
-	
-#set(LIBS 
-#	rlr_tcp 
-#	research_framework
-#	rlr_streaming#
-#	glog
-#	gflags
-#	)
 	
 set(SHADERS
   HashFunctionShared.slang

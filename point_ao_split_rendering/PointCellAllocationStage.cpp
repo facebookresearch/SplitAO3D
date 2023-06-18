@@ -1,4 +1,4 @@
-// Copyright (c) Facebook
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointCellAllocationStage.h"
 #include "PointData.slang"
 using namespace Falcor;
@@ -26,7 +26,15 @@ void PointCellAllocationStage::execute(
   FALCOR_PROFILE("PointAllocationStage");
   auto vars = computePass_->getVars();
 
-  vars["serverAOPoints"] = serverHashGen.getGPUPointCells();
+  //vars["serverAOPoints"] = serverHashGen.getGPUPointCells();
+
+  vars["serverAOPositions"] = serverHashGen.gpuPositions_;
+  vars["serverAONormals"] = serverHashGen.gpuNormals_;
+  vars["serverAOTangents"] = serverHashGen.gpuTangents_;
+  vars["serverAOBarycentrics"] = serverHashGen.gpuBarycentrics_;
+  vars["serverAOInstanceTriangleIDs"] = serverHashGen.gpuInstanceTriangleIDs_;
+  vars["serverAOInstanceIDs"] = serverHashGen.gpuInstanceIDs_;
+  vars["serverAOValues"] = serverHashGen.gpuValues_;
   vars["compressedClientAOPoints"] = serverHashGen.getGPUCompressedClientPointCells();
   vars["instancePointInfo"] = serverHashGen.getGPUInstancePointInfo();
   vars["instanceToDiskRadius"] = pointGen.getGPUDiskRadiusPerInstance();

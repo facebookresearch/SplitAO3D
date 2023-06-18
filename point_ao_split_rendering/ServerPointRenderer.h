@@ -1,5 +1,4 @@
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
+// (c) Meta Platforms, Inc. and its affiliates
 // Based on
 // shared\third-party\Falcor\4.1\Falcor\Source\Samples\HelloDXR\HelloDXR.h
 
@@ -211,7 +210,7 @@ class ServerPointRenderer : public IRenderer {
 
   static constexpr float movingAverageFactor_ = 0.3f;
   float smoothedRenderTime_ = 0.0f;
-  int32_t serverFramerate_ = 30;
+  int32_t serverFramerate_ = -1;
   float lastServerTimeStamp_ = 0.0f;
   std::unique_ptr<NetworkCompressionBase> networkCompression_;
   uint32_t frameCount_ = 0;

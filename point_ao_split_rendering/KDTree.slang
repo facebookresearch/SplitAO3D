@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 // Most of this code is a direct port of the nanoflann CPU kNN kd-Tree, and is thus not really optimal for GPU performance
 // It was mostly used early on to debug / test the image quality of the hash-based AO methods.
 #include "PointAOConstantsShared.slangh"
@@ -41,15 +42,6 @@ float cosineHemisphereDist(AOShadingPoint vec, PointData pt, out float l2)
   
   return k1 * l2 + k2 * cosDist;
 }
-
-struct ResultSet
-{
-  uint count;
-  uint indices[NUM_KNN_NEIGHBORS];
-  float dists[NUM_KNN_NEIGHBORS];
-  float cosDists[NUM_KNN_NEIGHBORS];
-  float maxDist;
-};
 
 void addPoint(float dist, uint index, inout ResultSet resultSet)
 {

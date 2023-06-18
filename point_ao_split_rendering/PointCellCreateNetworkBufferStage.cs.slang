@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 import PointData;
 import HashFunctionShared;
 #include "PointAOConstantsShared.slangh"
@@ -20,7 +21,7 @@ void main(
   
   for (uint pointOffset = 0; pointOffset < FIXED_POINTS_PER_CELL; pointOffset++)
   {
-    if(serverAOPoints[globalCellOffset + pointOffset].value >= 0)
+    if(serverAOValues[globalCellOffset + pointOffset] >= 0)
     {
       validCellIds[validPointCount] = globalCellOffset + pointOffset;
       validPointCount++;
@@ -33,7 +34,16 @@ void main(
   {
     cellUpdateInfos[dispatchThreadId.x].cellData[pointOffset] = compressedClientAOPoints[validCellIds[pointOffset]];
     compressedClientAOPoints[pointOffset + globalCellOffset] = compressedClientAOPoints[validCellIds[pointOffset]];
-    serverAOPoints[pointOffset + globalCellOffset] = serverAOPoints[validCellIds[pointOffset]];
+    //serverAOPoints[pointOffset + globalCellOffset] = serverAOPoints[validCellIds[pointOffset]];
+    uint idx = pointOffset + globalCellOffset;
+    uint idx2 = validCellIds[pointOffset];
+    serverAOPositions[idx] = serverAOPositions[idx2];
+    serverAONormals[idx] = serverAONormals[idx2];
+    serverAOTangents[idx] = serverAOTangents[idx2];
+    serverAOBarycentrics[idx] = serverAOBarycentrics[idx2];
+    serverAOInstanceTriangleIDs[idx] = serverAOInstanceTriangleIDs[idx2];
+    serverAOInstanceIDs[idx] = serverAOInstanceIDs[idx2];
+    serverAOValues[idx] = serverAOValues[idx2];
   }
   
   // Invalidate all the other slots
@@ -41,7 +51,8 @@ void main(
   {
     cellUpdateInfos[dispatchThreadId.x].cellData[pointOffset].posNormVal = INVALID_CELL;
     compressedClientAOPoints[globalCellOffset + pointOffset].posNormVal = INVALID_CELL;
-    serverAOPoints[globalCellOffset + pointOffset].value = -1.0f;
+    //serverAOPoints[globalCellOffset + pointOffset].value = -1.0f;
+    serverAOValues[globalCellOffset + pointOffset] = -1.0f;
   }
   
   // Compute delta infos and store previous' values

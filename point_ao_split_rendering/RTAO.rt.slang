@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 import Scene.Raytracing;
 import Utils.Sampling.TinyUniformSampleGenerator;
 import Rendering.Lights.LightHelpers;
@@ -264,6 +265,6 @@ void rayGen()
 
   PrimaryRayData hitData;
   hitData.color = 0.0f;
-  TraceRay(gScene.rtAccel, 0x0 /*rayFlags*/, 0xFF, 0 /* ray index*/, rayTypeCount, 0, ray, hitData);
+  TraceRay(gScene.rtAccel, 0x10 /*rayFlags*/, 0xFF, 0 /* ray index*/, rayTypeCount, 0, ray, hitData);
   gOutput[launchIndex.xy] = hitData.color;
 }

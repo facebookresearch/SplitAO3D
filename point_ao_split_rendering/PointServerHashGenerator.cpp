@@ -1,12 +1,15 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointServerHashGenerator.h"
 #include <algorithm>
 #include <execution>
+#include "Pointdata.slang"
 
 namespace split_rendering {
 
 int compressHashToCellInfoIndex(int pointCellIndex, uint32_t numPoints, uint32_t numCells) {
   return pointCellIndex;
 }
+
 
 void PointServerHashGenerator::generate(
     Falcor::Scene::SharedPtr& scene,
@@ -147,7 +150,7 @@ void PointServerHashGenerator::generate(
               hashInfo.numPoints++;
               compressedClientPointCells_
                   [hashInfo.pointCellIndex + ipi.pointCellOffset + localPointCellOffset] =
-                      compressClientData(pointCellPoint, diskRadius, ipi.aabbMin);
+                      Falcor::compressClientData(pointCellPoint.position, pointCellPoint.normal, pointCellPoint.value, diskRadius, ipi.aabbMin);
 
               break;
             }
@@ -194,7 +197,8 @@ void PointServerHashGenerator::generate(
       pointCell.value = UNINITIALIZED_VALUE;
       compressedClientPointCells_
           [hashInfo.pointCellIndex + ipi.pointCellOffset] =
-          compressClientData(pointCell, diskRadius, ipi.aabbMin);
+          Falcor::compressClientData(
+              pointCell.position, pointCell.normal, pointCell.value, diskRadius, ipi.aabbMin);
     }
   }
 
@@ -231,12 +235,121 @@ void PointServerHashGenerator::generate(
       Falcor::Buffer::CpuAccess::None,
       hashNumBuckets.data());
 
+  
+    // Create all sub-data for GPU buffers to circumvent 4GB buffer limit
+  // float3 position;
+  // float3 normal;
+  // float3 tangent;
+  // float2 barycentrics;
+  // uint instanceTriangleId;
+  // uint instanceId;
+  // float value;
+  {
+    std::vector<Falcor::float3> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.position);
+
+    gpuPositions_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+
+  }
+
+  {
+    std::vector<Falcor::float3> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.normal);
+
+    gpuNormals_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+  }
+
+  {
+    std::vector<Falcor::float3> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.tangent);
+
+    gpuTangents_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+  }
+
+  {
+    std::vector<Falcor::float2> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.barycentrics);
+
+    gpuBarycentrics_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+  }
+
+  {
+    std::vector<uint32_t> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.instanceTriangleId);
+
+    gpuInstanceTriangleIDs_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+  }
+
+  {
+    std::vector<uint32_t> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.instanceId);
+
+    gpuInstanceIDs_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+  }
+
+  {
+    std::vector<float> vals;
+
+    for (const auto& point : pointCells_)
+      vals.push_back(point.value);
+
+    gpuValues_ = Falcor::Buffer::createStructured(
+        sizeof(vals[0]),
+        vals.size(),
+        Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
+        Falcor::Buffer::CpuAccess::None,
+        vals.data());
+  }
+
+  /*
   gpuPointCells_ = Falcor::Buffer::createStructured(
       sizeof(Falcor::PointData),
       pointCells_.size(),
       Falcor::ResourceBindFlags::ShaderResource | Falcor::ResourceBindFlags::UnorderedAccess,
       Falcor::Buffer::CpuAccess::None,
-      pointCells_.data());
+      pointCells_.data());*/
 
 
   mGPUCellDirtyFlags = Falcor::Buffer::createStructured(
@@ -274,7 +387,7 @@ void PointServerHashGenerator::generate(
       instancePointInfo_.data());
 
   // Generate point update data and staging buffer
-  const uint32_t kNumMaxUpdates = pointCells_.size();
+  const uint32_t kNumMaxUpdates = std::min(4000000000 / sizeof(Falcor::PointUpdateData), pointCells_.size());
   gpuPointUpdateData_ = Falcor::Buffer::createStructured(
       sizeof(Falcor::PointUpdateData),
       kNumMaxUpdates,

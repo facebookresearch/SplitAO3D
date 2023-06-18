@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "LZ4Compression.h"
 
 int LZ4Compression::compressData(

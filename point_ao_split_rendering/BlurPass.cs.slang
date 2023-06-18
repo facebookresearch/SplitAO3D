@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 RWTexture2D<float> inTex;
 RWTexture2D<float> outTex;
 

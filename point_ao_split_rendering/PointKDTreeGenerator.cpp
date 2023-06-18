@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointKDTreeGenerator.h"
 #include <glm/gtx/matrix_decompose.hpp>
 #include <algorithm>

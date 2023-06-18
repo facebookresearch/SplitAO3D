@@ -1,5 +1,4 @@
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
+// (c) Meta Platforms, Inc. and its affiliates
 // Based on
 // shared\third-party\Falcor\4.1\Falcor\Source\Samples\HelloDXR\HelloDXR.cpp
 #include "ServerPointRenderer.h"
@@ -8,7 +7,6 @@
 
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/string_cast.hpp>
-//#include <glog/logging.h>
 #include <algorithm>
 #include <execution>
 #include "FLIPScreenshotComparison.h"
@@ -19,7 +17,6 @@
 #include "Utils/UI/TextRenderer.h"
 #include "ZSTDCompression.h"
 
-// using namespace rlr_streaming;
 
 namespace split_rendering {
 
@@ -46,9 +43,12 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
   w.text(std::string("Num cells alloc'd: ") + std::to_string(frameUpdateInfo_.numAllocatedCells));
   w.text(std::string("Max points changed: ") + std::to_string(maxNumPointsChanged_));
   w.text(std::string("Total points changed: ") + std::to_string(totalNumPointsChanged_));
+
+  auto cur_frame = frameCount_;
+
   w.text(
       std::string("Average points changed: ") +
-      std::to_string(totalNumPointsChanged_ / (double)gpFramework->getGlobalClock().getFrame()));
+      std::to_string(totalNumPointsChanged_ / (double)cur_frame));
 
   w.text(std::string("Avg onFrameRender time: ") + std::to_string(1000.0f * smoothedRenderTime_));
 
@@ -62,7 +62,7 @@ void ServerPointRenderer::onGuiRender(Gui* gui) {
   w.checkbox("Send Messages", sendMessages_);
   w.var("AO samples", aoSamples_, 1, 4096);
   w.var("AO radius", aoRadius_, 0.001f, 5.0f);
-  // ssao_->setSampleRadius(aoRadius_);
+  ssao_->setSampleRadius(aoRadius_);
   w.var("Neighbors", numNeighbors_, 1, 16);
   w.var("Int. Radius Mult", interpolationRadiusFactor_, 0.1f, 5.0f);
   w.var("AO filter kernel", aoKernel_, 1, 10);
@@ -686,8 +686,8 @@ void ServerPointRenderer::onLoad(RenderContext* renderContext) {
 
   Dictionary ssao_dict;
   ssao_dict["aoMapSize"] = uint2(512, 512);
-  // ssao_ = SSAO::create(renderContext, ssao_dict, scene_);
-  // ssao_->setAOMapSize(uint2(512, 512));
+  ssao_ = SSAO::create(renderContext, ssao_dict, scene_);
+  ssao_->setAOMapSize(uint2(512, 512));
 
   // server_.startThreads();
 }
@@ -809,7 +809,15 @@ void ServerPointRenderer::renderAOPoints(RenderContext* renderContext, uint32_t 
   constantBuffer["updateDeltaValFactor"] = updateDeltaValFactor;
 
   pointAOVars_["frameUpdateInfo"] = gpuFrameUpdateInfo_;
-  pointAOVars_["serverAOPoints"] = serverHashGen_.getGPUPointCells();
+  //pointAOVars_["serverAOPoints"] = serverHashGen_.getGPUPointCells();
+
+  pointAOVars_["serverAOPositions"] = serverHashGen_.gpuPositions_;
+  pointAOVars_["serverAONormals"] = serverHashGen_.gpuNormals_;
+  pointAOVars_["serverAOTangents"] = serverHashGen_.gpuTangents_;
+  pointAOVars_["serverAOBarycentrics"] = serverHashGen_.gpuBarycentrics_;
+  pointAOVars_["serverAOInstanceTriangleIDs"] = serverHashGen_.gpuInstanceTriangleIDs_;
+  pointAOVars_["serverAOInstanceIDs"] = serverHashGen_.gpuInstanceIDs_;
+  pointAOVars_["serverAOValues"] = serverHashGen_.gpuValues_;
   pointAOVars_->setBuffer("triangleVisibilityDataPerFrame", triangleVisibilityDataPerFrame_);
   pointAOVars_->setBuffer("triangleVisibilityOffsetData", triangleVisibilityOffsetData_);
   pointAOVars_["compressedClientAOPoints"] = serverHashGen_.getGPUCompressedClientPointCells();
@@ -846,14 +854,14 @@ void ServerPointRenderer::renderAOPoints(RenderContext* renderContext, uint32_t 
       renderContext,
       pointAORaytraceProgram.get(),
       pointAOVars_,
-      uint3(serverHashGen_.getGPUPointCells()->getElementCount(), 1, 1));
+      uint3(serverHashGen_.gpuPositions_->getElementCount(), 1, 1));
 
   frameUpdateInfo_ = *(PerFrameUpdateInfo*)gpuFrameUpdateInfo_->map(Buffer::MapType::Read);
 
   profilingStats_.back().networkDataStages_.push_back(
       {"numChangedPoints", frameUpdateInfo_.numChangedPoints});
 
-  if (gpFramework->getGlobalClock().getFrame() > 100) {
+  if (frameCount_ > 100) {
     minNumPointsChanged_ = std::min(frameUpdateInfo_.numChangedPoints, minNumPointsChanged_);
     maxNumPointsChanged_ = std::max(frameUpdateInfo_.numChangedPoints, maxNumPointsChanged_);
   }
@@ -903,7 +911,7 @@ void ServerPointRenderer::visualizePoints(
 
     PointCloudVisualizationPass::PointCloudPassData data(
         targetFbo,
-        serverHashGen_.getGPUPointCells(),
+        serverHashGen_,
         localToWorld,
         invTranspLocalToWorld,
         camera_->getViewProjMatrix(),
@@ -970,6 +978,10 @@ void ServerPointRenderer::onFrameRender(
   if (fixedFrameTime > 0) {
     gpFramework->getGlobalClock().setFrame(frameCount_++);
     gpFramework->getGlobalClock().setTime(fixedFrameTime * frameCount_);
+  }
+  else
+  {
+    frameCount_++;
   }
 
   // We only run the framerate limiting code if we are not running in the "automated screenshotting"
@@ -1095,17 +1107,30 @@ void ServerPointRenderer::onFrameRender(
       renderAOBlur(renderContext, rtaoFBO_.get(), blurredAOFBO_.get());
     }
 
-    if (false && aoType_ == AO_TYPE_SSAO) {
+    if (aoType_ == AO_TYPE_SSAO) {
       // Render SSAO baseline
+
+      auto start_ssao = std::chrono::high_resolution_clock::now();
       for (EyeType eye : kAllEyes) {
-        if (!targetFbo->getColorTexture(0))
+        if (!targetFbo->getColorTexture(eye))
           break;
 
         {
           FALCOR_PROFILE("SSAO");
           ssao_->generateAOMap(renderContext, camera_.get(), eye);
+
         }
       }
+
+      renderContext->flush(true);
+
+
+      auto duration_ssao = std::chrono::duration_cast<std::chrono::duration<float>>(
+        std::chrono::high_resolution_clock::now() - start_ssao)
+        .count();
+
+
+      profilingStats_.back().profilingStages_.push_back({ "ssao_render", duration_ssao });
     }
 
     auto end_server_total = std::chrono::high_resolution_clock::now();
@@ -1178,7 +1203,7 @@ void ServerPointRenderer::onFrameRender(
         const auto& instance_matrix = matrices[matrix_id];
 
         if (instanceMatrices_[matrix_id] == instance_matrix && !mesh.isDynamic()) {
-          // continue;
+          continue;
         } else {
           vSaver.number_of_changed_frames++;
         }
@@ -1258,13 +1283,21 @@ void ServerPointRenderer::onFrameRender(
     constantBuffer["cosNormalThreshold"] = cosNormalThreshold_;
     constantBuffer["cosDeltaThreshold"] = cosDeltaThreshold_;
 
-    rasterVars["serverAOPoints"] = serverHashGen_.getGPUPointCells();
+    //rasterVars["serverAOPoints"] = serverHashGen_.getGPUPointCells();
+
+    rasterVars["serverAOPositions"] = serverHashGen_.gpuPositions_;
+    rasterVars["serverAONormals"] = serverHashGen_.gpuNormals_;
+    rasterVars["serverAOTangents"] = serverHashGen_.gpuTangents_;
+    rasterVars["serverAOBarycentrics"] = serverHashGen_.gpuBarycentrics_;
+    rasterVars["serverAOInstanceTriangleIDs"] = serverHashGen_.gpuInstanceTriangleIDs_;
+    rasterVars["serverAOInstanceIDs"] = serverHashGen_.gpuInstanceIDs_;
+    rasterVars["serverAOValues"] = serverHashGen_.gpuValues_;
     rasterVars["compressedClientAOPoints"] = serverHashGen_.getGPUCompressedClientPointCells();
     rasterVars["instanceToDiskRadius"] = pointGen_.getGPUDiskRadiusPerInstance();
-    rasterVars["linearTree"] = kdTreeGen_.getGPUKDTree();
-    rasterVars["kdTreeIndex"] = kdTreeGen_.getGPUKDTreeIndex();
-    rasterVars["instanceToKdTree"] = kdTreeGen_.getGPUInstanceKDTreeOffset();
-    rasterVars["instanceToPointOffset"] = kdTreeGen_.getGPUInstanceKDTreeIndexOffset();
+    //rasterVars["linearTree"] = kdTreeGen_.getGPUKDTree();
+    //rasterVars["kdTreeIndex"] = kdTreeGen_.getGPUKDTreeIndex();
+    //rasterVars["instanceToKdTree"] = kdTreeGen_.getGPUInstanceKDTreeOffset();
+    //rasterVars["instanceToPointOffset"] = kdTreeGen_.getGPUInstanceKDTreeIndexOffset();
     rasterVars["hashToBucket"] = hashGen_.getGPUHashToBucket();
     rasterVars["hashBucketToPointCell"] = hashGen_.getGPUHashBucketToPointCell();
     rasterVars["pointCells"] = hashGen_.getGPUPointCells();
@@ -1273,15 +1306,20 @@ void ServerPointRenderer::onFrameRender(
     rasterVars["instancePointInfo"] = serverHashGen_.getGPUInstancePointInfo();
     rasterVars["serverHashToPointCell"] = serverHashGen_.getGPUHashToPointCell();
     rasterVars["hashNumBuckets"] = serverHashGen_.getGPUHashNumBuckets();
-    auto kdTreeConstantBuffer = rasterVars["kdTreeConstantBuffer"];
-    kdTreeConstantBuffer["numNeighbors"] = numNeighbors_;
+    //auto kdTreeConstantBuffer = rasterVars["kdTreeConstantBuffer"];
+    //kdTreeConstantBuffer["numNeighbors"] = numNeighbors_;
 
     rasterVars["aoTex"] = blurredAOFBO_->getColorTexture(0);
-    // rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0);
+    rasterVars["ssaoTex"] = ssao_->getBlurredAOFBO()->getColorTexture(0);
 
     auto start_client = std::chrono::high_resolution_clock::now();
-    rasterPass_->renderScene(renderContext, screenshotFBO_);
-    renderContext->flush();
+
+    {
+      FALCOR_PROFILE("client_render");
+      rasterPass_->renderScene(renderContext, screenshotFBO_);
+      renderContext->flush();
+    }
+    
     auto end_client = std::chrono::high_resolution_clock::now();
     auto duration_client_sec =
         std::chrono::duration_cast<std::chrono::duration<float>>(end_client - start_client).count();
@@ -1364,6 +1402,8 @@ void ServerPointRenderer::onFrameRender(
     std::string s = ss.str();
     screenshotFBO_->getColorTexture(0)->captureToFile(
         0, 0, screenshotOutputDirectory_ + s + ".png");
+
+    Threading::finish();
   }
 }
 
@@ -1441,7 +1481,7 @@ void ServerPointRenderer::onResizeSwapChain(uint32_t width, uint32_t height) {
   float h = (float)height;
   float w = (float)width;
 
-  // ssao_->setAOMapSize(uint2(width, height));
+  ssao_->setAOMapSize(uint2(width, height));
 
   if (camera_) {
     camera_->setFocalLength(18);

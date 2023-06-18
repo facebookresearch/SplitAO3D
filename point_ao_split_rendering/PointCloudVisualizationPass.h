@@ -1,8 +1,9 @@
-// Copyright (c) Facebook
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 #include <Falcor.h>
 #include "Utils/Math/FalcorMath.h"
 #include "Utils/Math/Matrix.h"
+#include "PointServerHashGenerator.h"
 
 namespace PointCloudPassConstants {
 const std::string kProgramFile = "Samples/FalcorServer/PointCloudVisualizationPass.slang";
@@ -22,14 +23,14 @@ class PointCloudVisualizationPass {
   struct PointCloudPassData {
     PointCloudPassData(
         const Falcor::Fbo::SharedPtr& fbo,
-        const Falcor::Buffer::SharedPtr& points,
+        const split_rendering::PointServerHashGenerator& hash_gen,
         Falcor::float4x4 localToWorld,
         Falcor::float4x4 invTranspLocalToWorld,
         Falcor::float4x4 viewProj,
         const uint32_t instanceOffset,
         const uint32_t instancePointCount)
         : fbo(fbo),
-          gpuPoints(points),
+          hashGen(hash_gen),
           localToWorld(localToWorld),
           invTranspLocalToWorld(invTranspLocalToWorld),
           viewProj(viewProj),
@@ -37,7 +38,7 @@ class PointCloudVisualizationPass {
           instancePointCount(instancePointCount) {}
 
     const Falcor::Fbo::SharedPtr& fbo;
-    const Falcor::Buffer::SharedPtr& gpuPoints;
+    const split_rendering::PointServerHashGenerator& hashGen;
 
     Falcor::float4x4 localToWorld;
     Falcor::float4x4 invTranspLocalToWorld;
