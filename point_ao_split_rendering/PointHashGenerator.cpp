@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointHashGenerator.h"
 #include <algorithm>
 #include <execution>
@@ -17,9 +18,12 @@ void PointHashGenerator::generate(
   for (uint32_t instanceId = 0; instanceId < scene->getGeometryInstanceCount(); instanceId++) {
     // NOTE: sometimes the hash table size can be a bit too small, and ideally we want to configure
     // it and/or figure out dynamically how much we need
-    uint32_t hashTableSize = std::exp2(
+    uint32_t hashTableSize = (uint32_t)std::exp2(
         std::ceil(std::log2((numFinalSamplesPerInstance[instanceId] / FIXED_HASH_BUCKET_SIZE))) +
         HASH_LOG2_SIZE_FACTOR);
+
+    
+    hashTableSize = std::max(hashTableSize, (uint32_t)FIXED_HASH_BUCKET_SIZE);
 
     const auto& ipi = instancePointInfos[instanceId];
 

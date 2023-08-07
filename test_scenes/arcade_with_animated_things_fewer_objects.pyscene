@@ -66,6 +66,11 @@
 #sceneBuilder.addMeshInstance(customNodeID, customMeshID)
 
 sceneBuilder.importScene('arcade_with_animated_things_fewer_objects.gltf')
+sceneBuilder.importScene('CesiumMan.gltf')
+sceneBuilder.importScene('CesiumMan2.gltf')
+sceneBuilder.importScene('CesiumMan3.gltf')
+
+
 
 # Adjust emissive screen
 #m = sceneBuilder.getMaterial('Cabinet')

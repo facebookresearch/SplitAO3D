@@ -1,4 +1,4 @@
-// Copyright (c) Facebook
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointCloudVisualizationPass.h"
 using namespace Falcor;
 
@@ -50,11 +50,20 @@ void PointCloudVisualizationPass::run(
   // Don't clear color or depth, we're rendering on top of the existing scene
   graphicsState_->setFbo(data.fbo);
 
-  programVars_->setBuffer("gpuPoints", data.gpuPoints);
+  //programVars_->setBuffer("gpuPoints", data.gpuPoints);
+  programVars_["serverAOPositions"] = data.hashGen.gpuPositions_;
+  programVars_["serverAONormals"] = data.hashGen.gpuNormals_;
+  programVars_["serverAOTangents"] = data.hashGen.gpuTangents_;
+  programVars_["serverAOBarycentrics"] = data.hashGen.gpuBarycentrics_;
+  programVars_["serverAOInstanceTriangleIDs"] = data.hashGen.gpuInstanceTriangleIDs_;
+  programVars_["serverAOInstanceIDs"] = data.hashGen.gpuInstanceIDs_;
+  programVars_["serverAOValues"] = data.hashGen.gpuValues_;
   programVars_["perFrameConstantBuffer"]["matViewProj"] = data.viewProj;
   programVars_["perFrameConstantBuffer"]["meshDesc"] = data.localToWorld;
-  programVars_["perFrameConstantBuffer"]["invTransposemeshDesc"] =
-      glm::transpose(glm::inverse(data.localToWorld));
+  programVars_["perFrameConstantBuffer"]["invTransposemeshDesc"] = data.invTranspLocalToWorld;
+
+  auto test = data.invTranspLocalToWorld;
+  auto test2 = rmcv::inverse(data.localToWorld).getTranspose();
 
   programVars_["perFrameConstantBuffer"]["instanceOffset"] = data.instanceOffset;
   programVars_["perFrameConstantBuffer"]["instancePointCount"] = data.instancePointCount;

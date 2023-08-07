@@ -1,4 +1,4 @@
-// Copyright (c) Facebook
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 #include <Falcor.h>
 #include "PointServerHashGenerator.h"

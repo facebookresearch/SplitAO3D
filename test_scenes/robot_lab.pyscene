@@ -1,0 +1,39 @@
+#sceneBuilder.importScene('arcade_with_animated_things4.gltf')
+#sceneBuilder.importScene('CesiumMan.gltf')
+#sceneBuilder.importScene('CesiumMan2.gltf')
+#sceneBuilder.importScene('CesiumMan3.gltf')
+#sceneBuilder.importScene('CesiumMan4.gltf')
+#sceneBuilder.importScene('CesiumMan5.gltf')
+
+sceneBuilder.importScene('D:/Projects/shading_atlas_scenes/robot_lab/robot_lab.gltf')
+#sceneBuilder.importScene('C:/Users/neff/Downloads/glTF-Sample-Models-master/2.0/MultiUVTest/glTF/MultiUVTest.gltf')
+
+
+# Adjust emissive screen
+#m = sceneBuilder.getMaterial('Cabinet')
+#m.emissiveFactor = 150.0
+
+# Add environment map
+envMap = EnvMap('20050806-03_hd.hdr')
+envMap.intensity = 7.0
+sceneBuilder.envMap = envMap
+
+# Add camera
+#camera = Camera()
+#camera.position = float3(-1.682712, 1.612922, 3.208458)
+#camera.target = float3(-1.097630, 1.206952, 2.506413)
+#camera.up = float3(0.001629, 0.999997, -0.001951)
+#camera.focalLength = 21.0
+#sceneBuilder.addCamera(camera)
+
+# Add directional light
+dirLight = DirectionalLight('Directional light')
+dirLight.intensity = float3(1.0, 0.77, 0.54)
+dirLight.direction = float3(0.6245101094245911, -0.7170000076293945, -0.3096744418144226)
+sceneBuilder.addLight(dirLight)
+
+# Add point light
+pointLight = PointLight('Point light')
+pointLight.intensity = float3(0.9, 2.4, 3.0)
+pointLight.position = float3(-2.8681933879852297, 2.0, 2.9874155521392824)
+sceneBuilder.addLight(pointLight)

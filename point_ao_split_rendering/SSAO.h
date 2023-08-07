@@ -28,6 +28,9 @@
 #pragma once
 #include "Falcor.h"
 #include "SSAOData.slang"
+#include "RenderGraph/BasePasses/FullScreenPass.h"
+#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/BasePasses/RasterScenePass.h"
 
 using namespace Falcor;
 
@@ -80,7 +83,7 @@ class SSAO : public RenderPass {
 
   void init();
 
-  void generateAOMap(RenderContext* renderContext, const Camera* camera, EyeType eye);
+  void generateAOMap(RenderContext* renderContext, const Camera* camera, uint32_t eye);
   void setNoiseTexture(uint32_t width, uint32_t height);
 
  private:
@@ -105,9 +108,9 @@ class SSAO : public RenderPass {
   Fbo::SharedPtr depthNormalsFbo_;
   Fbo::SharedPtr blurredSSAOFbo_;
 
-  Texture::SharedPtr texNormals_[kEyeCount];
-  Texture::SharedPtr texDepth_[kEyeCount];
-  Texture::SharedPtr texBlurredAO_[kEyeCount];
+  Texture::SharedPtr texNormals_[2];
+  Texture::SharedPtr texDepth_[2];
+  Texture::SharedPtr texBlurredAO_[2];
   Dictionary blurParamDict_;
   ComputePass::SharedPtr computePass_;
   bool applyBlur_ = true;

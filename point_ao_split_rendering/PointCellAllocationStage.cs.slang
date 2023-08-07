@@ -54,8 +54,18 @@ void main(
             
       // If the old position was invalid, we can use this point as the new location
       // This does not need atomics - we already guaranteed that this slot is unique for this thread.
-      compressedClientAOPoints[pci + pointCellOffset + ipi.pointCellOffset] = compressClientData(newPointData, diskRadius, ipi.aabbMin);
-      serverAOPoints[pci + pointCellOffset + ipi.pointCellOffset] = newPointData;
+      compressedClientAOPoints[pci + pointCellOffset + ipi.pointCellOffset] = compressClientData(newPointData.position, newPointData.normal, newPointData.value, diskRadius, ipi.aabbMin);
+      //serverAOPoints[pci + pointCellOffset + ipi.pointCellOffset] = newPointData;
+
+      uint idx = pci + pointCellOffset + ipi.pointCellOffset;
+      serverAOPositions[idx] = newPointData.position;
+      serverAONormals[idx] = newPointData.normal;
+      serverAOTangents[idx] = newPointData.tangent;
+      serverAOBarycentrics[idx] = newPointData.barycentrics;
+      serverAOInstanceTriangleIDs[idx] = newPointData.instanceTriangleId;
+      serverAOInstanceIDs[idx] = newPointData.instanceId;
+      serverAOValues[idx] = newPointData.value;
+
       
       break;
     }

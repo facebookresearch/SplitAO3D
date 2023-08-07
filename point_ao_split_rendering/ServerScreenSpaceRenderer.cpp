@@ -6,7 +6,7 @@
 #include "ServerScreenSpaceRenderer.h"
 #include "BinaryMessageType.h"
 
-#include <glog/logging.h>
+//#include <glog/logging.h>
 
 using namespace rlr_streaming;
 

@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "Utils/Math/MathConstants.slangh"
 #include "PointAOConstantsShared.slangh"
 
@@ -9,8 +10,9 @@ import Rendering.Lights.LightHelpers;
 import Rendering.Lights.EnvMapLighting;
 import PointData;
 import HashFunctionShared;
-import KDTree;
+//import KDTree;
 import PointAOSamplingUtils;
+import Utils.Math.MatrixUtils;
 
 cbuffer perFrameConstantBuffer
 {
@@ -28,6 +30,12 @@ EnvMapLighting envMapLighting;
 
 Texture2D aoTex;
 Texture2D ssaoTex;
+
+VSOut vsMain(VSIn vIn)
+{
+  return defaultVS(vIn);
+}
+
 
 // Returns the point cell index for the densely packed (non-dynamic) hash table implementation
 int getPointCellIndex(uint hashBase, uint rawCellId, InstanceHashInfo ihf)
@@ -78,6 +86,8 @@ int getPointCellIndexUpdate(uint hashBase, uint hashBucketBase, uint rawCellId, 
 
 // Sample an AO value from the compact (= non-dynamic) hash table
 // Keeps track of the 16 nearest neighbors instead of blending between all of them
+
+/*
 float samplePointAOHashNN(VSOut vsOut, uint triangleIndex, ShadingData sd, float3 barycentrics)
 {
   AOShadingPoint sp = getInstanceShadingPointPreviousFrame(sd, vsOut, interpolationRadiusFactor, barycentrics, triangleIndex);
@@ -121,7 +131,7 @@ float samplePointAOHashNN(VSOut vsOut, uint triangleIndex, ShadingData sd, float
         {
           int otherIndex = pointCells[pointCellIndex + ihf.pointCellOffset + pointOffset];
           
-          float otherValue = serverAOPoints[otherIndex].value;
+          float otherValue = serverAOValues[otherIndex];//serverAOPoints[otherIndex].value;
           
           float l2 = 0.0f;
           float cosDist = cosineHemisphereDist(sp, serverAOPoints[otherIndex], l2);
@@ -152,8 +162,9 @@ float samplePointAOHashNN(VSOut vsOut, uint triangleIndex, ShadingData sd, float
     return clamp(samplingWeight.fallbackValueSum / samplingWeight.fallbackWeightSum, 0.0f, 1.0f);
   
   return clamp(samplingWeight.valueSum / samplingWeight.weightSum, 0.0f, 1.0f);
-}
+}*/
 
+/*
 float samplePointAOHash(VSOut vsOut, uint triangleIndex, ShadingData sd, float3 barycentrics)
 {
   AOShadingPoint sp = getInstanceShadingPointPreviousFrame(sd, vsOut, interpolationRadiusFactor, barycentrics, triangleIndex);
@@ -206,7 +217,7 @@ float samplePointAOHash(VSOut vsOut, uint triangleIndex, ShadingData sd, float3 
   
   return clamp(samplingWeight.valueSum / samplingWeight.weightSum, 0.0f, 1.0f);
 }
-
+*/
 float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, float3 barycentrics)
 {
   const uint shadingInstanceId = vsOut.instanceID.index;
@@ -220,6 +231,8 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
   int3 intBaseCoords = floatCoords - 0.5f;
   
   AOSamplingWeight samplingWeight = initSamplingWeight();
+
+  int number_of_hit_cells = 0;
   
   for (int x = 0; x <= 1; x++)
   {
@@ -240,6 +253,8 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
 
         if (pointCellIndex < 0)
           continue;
+
+        number_of_hit_cells++;
         
         // Iterate over point cell and get all contributions
         uint pointOffset = 0;
@@ -251,20 +266,28 @@ float samplePointAOHashUpdate(VSOut vsOut, uint triangleIndex, ShadingData sd, f
             continue;
           
           ClientPointData cpd = decompressClientData(compressedClientAOPoints[offsetIndex], coords, sp.diskRadius, ipi.aabbMin);
+
+          //PointData pd = serverAOPoints[offsetIndex];
+          //cpd.position = pd.position;
+          //cpd.normal = pd.normal;
+          //cpd.value = pd.value;
           
           applySamplingWeight(samplingWeight, sp, cpd, cosDeltaThreshold, cosNormalThreshold);
         }
       }
     }
   }
+
+  if(number_of_hit_cells == 0)
+    return 1.0f;
   
   if(samplingWeight.weightSum == 0.0f)
     return clamp(samplingWeight.fallbackValueSum / samplingWeight.fallbackWeightSum, 0.0f, 1.0f);
-  
+
   return clamp(samplingWeight.valueSum / samplingWeight.weightSum, 0.0f, 1.0f);
 }
 
-
+/*
 float samplePointAOKDTree(VSOut vsOut, uint triangleIndex, ShadingData sd, float3 barycentrics)
 {
   const uint shadingInstanceId = vsOut.instanceID.index;
@@ -293,7 +316,7 @@ float samplePointAOKDTree(VSOut vsOut, uint triangleIndex, ShadingData sd, float
     return clamp(samplingWeight.fallbackValueSum / samplingWeight.fallbackWeightSum, 0.0f, 1.0f);
   
   return clamp(samplingWeight.valueSum / samplingWeight.weightSum, 0.0f, 1.0f);
-}
+}*/
 
 float sampleTexAO(VSOut vsOut)
 {
@@ -324,13 +347,16 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
   let bsdf = gScene.materials.getBSDF(sd, lod);
 
   float3 color = bsdf.getProperties(sd).emission;
+  
+  uint3 launchIndex = DispatchRaysIndex();
+  TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(launchIndex.xy, 0);
 
   // Direct lighting from analytic light sources
   for (int i = 0; i < gScene.getLightCount(); i++)
   {
     AnalyticLightSample ls;
     evalLightApproximate(sd.posW, gScene.getLight(i), ls);
-    color += bsdf.eval(sd, ls.dir) * ls.Li;
+    color += bsdf.eval(sd, ls.dir, sg) * ls.Li;
   }
   
 #ifdef _USE_ENV_MAP
@@ -338,8 +364,12 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
     color.rgb += envMapLighting.evalDiffuse(sd, bsdf.getProperties(sd));
     color.rgb += envMapLighting.evalSpecular(sd, bsdf.getProperties(sd), reflect(-sd.V, sd.N));
 #endif
-  
-    
+
+  if (colorOnly)
+  {
+    return float4(color, 1.0f);
+  }
+
   float aoFactor = 0.0f;
   if (aoType == AO_TYPE_PER_PIXEL_RTAO)
   {
@@ -347,15 +377,18 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
   }
   else if(aoType == AO_TYPE_POINT_AO_KD_TREE)
   {
-    aoFactor = samplePointAOKDTree(vsOut, triangleIndex, sd, barycentrics); 
+    // thomasneff: these should work but might have some bugs due to transition to Falcor 5.2
+    aoFactor = 1.0f;//samplePointAOKDTree(vsOut, triangleIndex, sd, barycentrics); 
   }
   else if (aoType == AO_TYPE_POINT_AO_HASH)
   {
-    aoFactor = samplePointAOHash(vsOut, triangleIndex, sd, barycentrics); 
+    // thomasneff: these should work but might have some bugs due to transition to Falcor 5.2
+    aoFactor = 1.0f;//samplePointAOHash(vsOut, triangleIndex, sd, barycentrics); 
   }
   else if (aoType == AO_TYPE_POINT_AO_HASH_KNN)
   {
-    aoFactor = samplePointAOHashNN(vsOut, triangleIndex, sd, barycentrics); 
+    // thomasneff: these should work but might have some bugs due to transition to Falcor 5.2
+    aoFactor = 1.0f;//samplePointAOHashNN(vsOut, triangleIndex, sd, barycentrics); 
   }
   else if (aoType == AO_TYPE_POINT_AO_HASH_UPDATE)
   {
@@ -369,11 +402,7 @@ float4 main(VSOut vsOut, uint triangleIndex : SV_PrimitiveID, float3 barycentric
   if (aoOnly)
   {
     return float4(aoFactor, aoFactor, aoFactor, 1.0f);
-  }
-  else if (colorOnly)
-  {
-    return float4(color, 1.0f);
-  }
+  } 
   else
   {
     return float4(color * aoFactor, 1.0f);

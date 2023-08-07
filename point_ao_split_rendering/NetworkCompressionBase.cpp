@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "NetworkCompressionBase.h"
 #include "LZ4Compression.h"
 #include "ZSTDCompression.h"

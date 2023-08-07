@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 #include "Utils/HostDeviceShared.slangh"
 // This file is designed to be included on the CPU/HOST side and imported on the GPU/DEVICE side

@@ -43,7 +43,7 @@ class ServerScreenSpaceRenderer : public IRenderer {
   void onResizeSwapChain(uint32_t width, uint32_t height) override;
   bool onKeyEvent(const KeyboardEvent& keyEvent) override;
   bool onMouseEvent(const MouseEvent& mouseEvent) override;
-  void onHmdEvent(const HmdState& hmdState) override;
+  //void onHmdEvent(const HmdState& hmdState) override;
   void onGuiRender(Gui* gui) override;
 
  private:

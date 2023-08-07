@@ -1,15 +1,20 @@
+// (c) Meta Platforms, Inc. and its affiliates
 import Scene.Raytracing;
 import Utils.Sampling.UniformSampleGenerator;
 import Rendering.Lights.LightHelpers;
 import Utils.Math.MathHelpers;
 import PointData;
 import HashFunctionShared;
+import Utils.Math.MatrixUtils;
 
 #include "PointAOConstantsShared.slangh"
 
+RWStructuredBuffer<uint> triangleVisibilityDataPerFrame;
+RWStructuredBuffer<uint> triangleVisibilityOffsetData;
 
 cbuffer perFrameConstantBuffer
 {
+  float4x4 extendedViewProjectionMatrix;
   uint sampleIndex;
   float aoRadius;
   int aoSamples;
@@ -25,6 +30,7 @@ struct AORayData
 	float hitT;
 };
 
+/*
 float3 randomSampleCosineHemisphere(PointData pd, float2 rng)
 {
 	float pdf;
@@ -32,7 +38,7 @@ float3 randomSampleCosineHemisphere(PointData pd, float2 rng)
   
   float3 bitangent = cross(pd.normal, pd.tangent);
   return normalize(relativeVec.x * pd.tangent + relativeVec.y * bitangent + relativeVec.z * pd.normal);
-}
+}*/
 
 float3 randomSampleCosineHemisphereSD(ShadingData sd, float2 rng)
 {
@@ -79,7 +85,7 @@ float raytraceAO(ShadingData sd, UniformSampleGenerator sg)
     float3 direction = randomSampleCosineHemisphereSD(sd, float2(sampleNext1D(sg), sampleNext1D(sg)));
 
     RayDesc ray;
-    ray.Origin = sd.posW + sd.N * 0.001f;
+    ray.Origin = sd.posW + sd.N * 0.01f;
     ray.Direction = normalize(direction);
     ray.TMin = 0;
     ray.TMax = aoRadius;
@@ -100,53 +106,91 @@ float raytraceAO(ShadingData sd, UniformSampleGenerator sg)
 [shader("raygeneration")]
 void rayGen()
 {
-	// This shader traces rays from each point and is responsible for determining the changes (value, normal, position) of points. 
-    
+  // This shader traces rays from each point and is responsible for determining the changes (value, normal, position) of points. 
+
   uint3 launchIndex = DispatchRaysIndex();
   
-  if (serverAOPoints[launchIndex.x].value < 0)
+  if (serverAOValues[launchIndex.x] < 0)
     return;
   
-  PointData pt = serverAOPoints[launchIndex.x];  
+  //PointData pt = serverAOPoints[launchIndex.x];
+
+  uint pt_instanceId = serverAOInstanceIDs[launchIndex.x];
+  uint pt_instanceTriangleId = serverAOInstanceTriangleIDs[launchIndex.x];
+  float2 pt_barycentrics = serverAOBarycentrics[launchIndex.x];
+  float3 pt_normal = serverAONormals[launchIndex.x];
+
+  //if (triangleVisibilityDataPerFrame[triangleVisibilityOffsetData[pt_instanceId] + pt_instanceTriangleId] == 0)
+  //  return;
   
-  const GeometryInstanceID instanceID = { pt.instanceId };
+  const GeometryInstanceID instanceID = { pt_instanceId };
   
   const GeometryInstanceData instance = gScene.getGeometryInstance(instanceID);
   float4x4 worldMat = gScene.loadWorldMatrix(instance.globalMatrixID);
+
   float4x4 shadingWorldMat = gScene.loadWorldMatrix(instance.globalMatrixID);
   float3x3 worldInvTransposeMat = gScene.loadInverseTransposeWorldMatrix(instance.globalMatrixID);
   
   // We use the barycentrics to get the new point location with the current animation state for the given triangle id.
-  const float3 barycentrics = {pt.barycentrics.x , pt.barycentrics.y, 1.0 - pt.barycentrics.x - pt.barycentrics.y };
+  const float3 barycentrics = {pt_barycentrics.x , pt_barycentrics.y, 1.0 - pt_barycentrics.x - pt_barycentrics.y };
   
-  VertexData v = gScene.getVertexData(instanceID, pt.instanceTriangleId, barycentrics);
+  VertexData v = gScene.getVertexData(instanceID, pt_instanceTriangleId, barycentrics);
   uint materialID = gScene.getMaterialID(instanceID);
   
   let lod = ExplicitLodTextureSampler(0.f);
   
-  pt.normal = normalize(mul(pt.normal, gScene.getInverseTransposeWorldMatrix(instanceID)));
-  ShadingData sd = gScene.materials.prepareShadingData(v, materialID, pt.normal, lod);
-  
-  UniformSampleGenerator sg = UniformSampleGenerator(launchIndex.x, pt.instanceId);
+  pt_normal = normalize(mul(gScene.getInverseTransposeWorldMatrix(instanceID), pt_normal));
+  ShadingData sd = gScene.materials.prepareShadingData(v, materialID, pt_normal, lod);
 
-  float aoTerm = serverAOPoints[launchIndex.x].value;
-  
-  if(raytracePoints)
+  if (!sd.frontFacing && sd.mtl.isDoubleSided())
+  {
+      sd.N = -sd.N;
+  }
+
+  // Transform world space pos with extended view projection matrix
+
+  float4 posNDCExtended = mul(extendedViewProjectionMatrix, float4(sd.posW, 1.0f));
+
+  posNDCExtended /= posNDCExtended.w;
+
+  // check if any coordinate is outside [-1,-1] <-> [1, 1] NDC
+  bool insideExtendedView = true;
+
+  if (posNDCExtended.x < -1 || posNDCExtended.x > 1 || posNDCExtended.y < -1 || posNDCExtended.y > 1 || posNDCExtended.z < -1 || posNDCExtended.z > 1)
+    insideExtendedView = false;
+
+
+  if(!insideExtendedView)
+  {
+    return;
+  }
+
+  UniformSampleGenerator sg = UniformSampleGenerator(launchIndex.x, pt_instanceId);
+
+  //float aoTerm = serverAOPoints[launchIndex.x].value;
+  float aoTerm = serverAOValues[launchIndex.x];
+
+  // Only raytrace points if they are rasterized in extended FOV - can do this directly here
+  if(raytracePoints && insideExtendedView)
     aoTerm = raytraceAO(sd, sg);
+
+  float diskRadius = DISK_RADIUS_FACTOR * instanceToDiskRadius[pt_instanceId];
   
-  float diskRadius = DISK_RADIUS_FACTOR * instanceToDiskRadius[pt.instanceId];
-  
-  InstancePointInfo ipi = instancePointInfo[pt.instanceId];
-  InstanceHashInfo ihf = serverInstanceHashInfo[pt.instanceId];
+  InstancePointInfo ipi = instancePointInfo[pt_instanceId];
+  InstanceHashInfo ihf = serverInstanceHashInfo[pt_instanceId];
   float3 aabbSize = ipi.aabbMax - ipi.aabbMin;
   
   // We store the old position, normal and value to compare them 
-  float3 oldPosition = serverAOPoints[launchIndex.x].position;
-  float3 oldNormal = serverAOPoints[launchIndex.x].normal;
-  float oldValue = serverAOPoints[launchIndex.x].value;
-  
-  float3 newPosition = mul(worldInvTransposeMat, sd.posW - shadingWorldMat[3].xyz);
-  float3 newNormal = normalize(mul(worldInvTransposeMat, sd.N));
+  //float3 oldPosition = serverAOPoints[launchIndex.x].position;
+  //float3 oldNormal = serverAOPoints[launchIndex.x].normal;
+  //float oldValue = serverAOPoints[launchIndex.x].value;
+
+  float3 oldPosition = serverAOPositions[launchIndex.x];
+  float3 oldNormal = serverAONormals[launchIndex.x];
+  float oldValue = serverAOValues[launchIndex.x];
+
+  float3 newPosition = mul(sd.posW - extractTranslate(shadingWorldMat), worldInvTransposeMat);
+  float3 newNormal = normalize(mul(sd.N, worldInvTransposeMat));
   float newValue = aoTerm;
   
   
@@ -173,13 +217,16 @@ void rayGen()
     // If the cell IDs are identical (and no change in value, normal or position was detected), we can early out - no memory management or cell updates necessary
     return;
   }
+
   
   // Update server points
-  serverAOPoints[launchIndex.x].position = newPosition;
-  serverAOPoints[launchIndex.x].normal = newNormal;
-  serverAOPoints[launchIndex.x].value = newValue;
+  serverAOValues[launchIndex.x] = newValue;
+ // serverAOPoints[launchIndex.x].value = newValue;
+  
+  serverAOPositions[launchIndex.x] = newPosition;
+  serverAONormals[launchIndex.x] = newNormal;
   // Tangent is used for visualization only
-  serverAOPoints[launchIndex.x].tangent = normalize(mul(worldInvTransposeMat, sd.T)); 
+  //serverAOPoints[launchIndex.x].tangent = //normalize(mul(sd.T, worldInvTransposeMat)); 
   
   InterlockedAdd(frameUpdateInfo[0].numChangedPoints, 1);
   
@@ -188,7 +235,7 @@ void rayGen()
   
   uint baseHashOffset = newHashData.hashBase + ihf.hashToBucketOffset;
   uint oldBaseHashOffset = oldHashData.hashBase + ihf.hashToBucketOffset;
-  
+
   if(newHashData.rawCellId != oldHashData.rawCellId)
   {
     cellDirtyRange = 2;
@@ -201,11 +248,21 @@ void rayGen()
     
     // Update indirect dispatch args for point cell alloc stage.
     InterlockedAdd(cellAllocIndirectDispatchArgs[0].x, 1, updateId);
-    pointUpdateData[updateId].newServerPointData = serverAOPoints[launchIndex.x];
+
+    pointUpdateData[updateId].newServerPointData.position = serverAOPositions[launchIndex.x];
+    pointUpdateData[updateId].newServerPointData.normal = serverAONormals[launchIndex.x];
+    pointUpdateData[updateId].newServerPointData.tangent = serverAOTangents[launchIndex.x];
+    pointUpdateData[updateId].newServerPointData.barycentrics = serverAOBarycentrics[launchIndex.x];
+    pointUpdateData[updateId].newServerPointData.instanceTriangleId = serverAOInstanceTriangleIDs[launchIndex.x];
+    pointUpdateData[updateId].newServerPointData.instanceId = serverAOInstanceIDs[launchIndex.x];
+    pointUpdateData[updateId].newServerPointData.value = serverAOValues[launchIndex.x];
+
+    //pointUpdateData[updateId].newServerPointData = serverAOPoints[launchIndex.x];
     pointUpdateData[updateId].newHashData = newHashData;
     
     // Disable old point (will potentially be overwritten in the next pass)
-    serverAOPoints[launchIndex.x].value = -1.0f;
+    serverAOValues[launchIndex.x] = -1.0f;
+    //serverAOPoints[launchIndex.x].value = -1.0f;
     compressedClientAOPoints[launchIndex.x].posNormVal = INVALID_CELL;
       
     // If the cell wasn't allocated yet, we allocate it and append its info to the hash table
@@ -225,10 +282,10 @@ void rayGen()
       {
         // We found an empty cell in the hash table and can allocate memory in the cell buffer for it
         uint cellAllocOffset = 0;
-        InterlockedAdd(instancePointInfo[pt.instanceId].numAllocatedCells, 1, cellAllocOffset);
+        InterlockedAdd(instancePointInfo[pt_instanceId].numAllocatedCells, 1, cellAllocOffset);
         
         uint dummy = 0;
-        InterlockedExchange(frameUpdateInfo[0].numAllocatedCells, instancePointInfo[pt.instanceId].numAllocatedCells, dummy);
+        InterlockedExchange(frameUpdateInfo[0].numAllocatedCells, instancePointInfo[pt_instanceId].numAllocatedCells, dummy);
         
         cellAllocOffset *= FIXED_POINTS_PER_CELL;
             
@@ -263,7 +320,7 @@ void rayGen()
   else
   {
     // If the raw cell ID matches, we can simply update the compressed point data - the client update will send the full cell later.
-    compressedClientAOPoints[launchIndex.x] = compressClientData(serverAOPoints[launchIndex.x], diskRadius, ipi.aabbMin);
+    compressedClientAOPoints[launchIndex.x] = compressClientData(serverAOPositions[launchIndex.x], serverAONormals[launchIndex.x], serverAOValues[launchIndex.x], diskRadius, ipi.aabbMin);
   }
   
   // Find old cell for the dirty offset

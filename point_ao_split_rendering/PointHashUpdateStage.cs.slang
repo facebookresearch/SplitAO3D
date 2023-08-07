@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #include "PointAOConstantsShared.slangh"
 import PointData;
 import HashFunctionShared;

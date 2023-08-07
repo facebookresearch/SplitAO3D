@@ -1,7 +1,9 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 
 #include <Falcor.h>
 #include "PointData.slang"
+#include <random>
 
 namespace split_rendering {
 
@@ -46,6 +48,15 @@ class MeshPointGenerator {
     return gpuSampleOffsetPerInstance_;
   }
 
+  std::vector<uint32_t> cpuTriangleVisibility_;
+  std::vector<uint32_t> cpuTriangleVisibilityOffsets_;
+
+  
+  // Constants for point generation
+  uint32_t kNumSamplesPerUnitSquaredEliminated = 2048;
+  uint32_t kMinSamplesPerInstance = 4096;
+  uint32_t kSamplesEliminatedFactor = 2;
+
  private:
   uint32_t samplePoissonDiskOnMeshOffsets(
       const Falcor::PointData* uniformPointData,
@@ -66,6 +77,7 @@ class MeshPointGenerator {
       uint32_t vertexOffset,
       uint32_t numTriangles,
       bool use16BitIndices,
+      uint32_t instanceID,
       std::vector<float>& outTriangleAreas);
 
   std::vector<uint32_t> getNumSamplesPerTriangle(
@@ -79,6 +91,7 @@ class MeshPointGenerator {
       bool use16BitIndices,
       bool isDoubleSided,
       float totalSurfaceArea,
+      uint32_t instanceID,
       uint32_t* numPlacedSamples = nullptr);
 
   void computeSampleCounts(
@@ -100,6 +113,16 @@ class MeshPointGenerator {
       std::vector<std::vector<uint32_t>>& triangleSampleCountsPerInstance,
       std::vector<std::vector<uint32_t>>& triangleSampleOffsetsPerInstance);
 
+  std::string getPoissonSampleFileName(Falcor::Scene::SharedPtr& scene, uint32_t instanceID);
+
+  bool checkIfPoissonSamplesExist(Falcor::Scene::SharedPtr& scene, uint32_t instanceID);
+
+  void loadPoissonSamples(std::string filePath, std::vector<Falcor::PointData>& output,
+    uint32_t outputOffset);
+
+  void savePoissonSamples(std::string filePath, std::vector<Falcor::PointData>& output,
+    uint32_t outputOffset, uint32_t numSamples);
+
   uint32_t
   getIndex(const std::vector<uint32_t>& indexBuffer, const size_t i, bool use16BitIndices) {
     return use16BitIndices ? reinterpret_cast<const uint16_t*>(indexBuffer.data())[i]
@@ -117,6 +140,8 @@ class MeshPointGenerator {
 
   void setupGPUUniformPointGenerationPipeline(Falcor::Scene::SharedPtr& scene);
 
+
+
   std::vector<uint32_t> numSamplesPerInstance_;
   std::vector<uint32_t> sampleOffsetPerInstance_;
   std::vector<float> diskRadiusPerInstance_;
@@ -127,10 +152,6 @@ class MeshPointGenerator {
   Falcor::RtProgramVars::SharedPtr pointGenRtVars_;
   Falcor::RtProgram::SharedPtr pointGenRtProgram_;
 
-  // Constants for point generation
-  static constexpr uint32_t kNumSamplesPerUnitSquaredEliminated = 4096;
-  static constexpr uint32_t kMinSamplesPerInstance = 4096;
-  static constexpr uint32_t kSamplesEliminatedFactor = 16;
 };
 
 } // namespace split_rendering

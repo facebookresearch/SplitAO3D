@@ -1,3 +1,4 @@
+// (c) Meta Platforms, Inc. and its affiliates
 #pragma once
 #include "Falcor.h"
 namespace split_rendering {
