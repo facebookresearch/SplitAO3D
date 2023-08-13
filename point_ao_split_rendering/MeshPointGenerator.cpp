@@ -324,6 +324,11 @@ void MeshPointGenerator::computeSampleCounts(
       numSamplesPerInstance_.back() *= 2;
     }
 
+    if (meshDesc.isDynamic())
+    {
+      numSamplesPerInstance_.back() *= 2;
+    }
+
     triangleSampleCountsPerInstance[instanceId] = getNumSamplesPerTriangle(
         meshIndexData,
         meshStaticData,

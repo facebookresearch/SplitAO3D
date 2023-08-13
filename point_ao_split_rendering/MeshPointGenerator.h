@@ -55,7 +55,7 @@ class MeshPointGenerator {
   // Constants for point generation
   uint32_t kNumSamplesPerUnitSquaredEliminated = 2048;
   uint32_t kMinSamplesPerInstance = 4096;
-  uint32_t kSamplesEliminatedFactor = 2;
+  uint32_t kSamplesEliminatedFactor = 8;
 
  private:
   uint32_t samplePoissonDiskOnMeshOffsets(
