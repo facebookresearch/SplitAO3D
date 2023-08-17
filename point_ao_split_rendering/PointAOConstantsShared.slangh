@@ -4,7 +4,7 @@
 
 BEGIN_NAMESPACE_FALCOR
 
-#define DISK_RADIUS_FACTOR 3.0f
+#define DISK_RADIUS_FACTOR 4.0f
 #define FIXED_HASH_BUCKET_SIZE 8
 // TODO: This could be replaced by a per-instance constant so we can have lower limits for mostly static objects
 #define FIXED_POINTS_PER_CELL 7

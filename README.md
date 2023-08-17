@@ -8,7 +8,7 @@
  <sup>1</sup>Graz University of Technology, <sup>2</sup>Meta Reality Labs Research  
   \* The work was primarily done during an internship at Meta.
   
-in Computer Graphics Forum Volume 42 (2023), Number 8
+in High-Performance Graphics 2023
 
 <img src='psao_teaser.png'/>
 
@@ -42,7 +42,7 @@ Afterwards, go into the `Falcor/Source/Samples/` directory and clone this reposi
 
 ```bash
 cd Source/Samples
-git clone https://github.com/facebookresearch/SplitAO3D
+git clone git@github.com:facebookresearch/SplitAO3D.git
 ```
 
 After that, use CMake to generate build files for Falcor.
@@ -51,6 +51,13 @@ You should now have a `FalcorServer` target in the `Samples` projects in your ID
 Set that as your startup target. 
 
 Afterwards, for our test scenes to work, you need to create a symbolic link from `Falcor/Source/Samples/SplitAO3D/test_scenes` to `Falcor/media/test_scenes`.
+
+On Windows, this can be done via `mklink` from a command prompt (from within the `Source/Samples` directory):
+
+```bash
+cd ../../media
+mklink /D test_scenes ..\Source\Samples\SplitAO3D\test_scenes\
+```
 
 By default, you should now be able to start the project and see the `arcade_with_animated_things` scene, that includes rigidbody and skinned animations and shows the result of PSAO with a low number of points by default.
 
@@ -64,16 +71,15 @@ If you find this repository useful in any way or use/modify PSAO in your researc
 
 ```bibtex
 @article{neff2023psao,
-  year = { 2023 },
-  eprint = { https://onlinelibrary.wiley.com/doi/pdf/10.1111/cgf.14864 },
-  url = { https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.14864 },
-  doi = { https://doi.org/10.1111/cgf.14864 },
-  keywords = { CCS Concepts, • Computing methodologies → Rendering },
-  number = { 8 },
-  volume = { 42 },
-  journal = { Computer Graphics Forum },
-  title = { {PSAO}: Point-Based Split Rendering for Ambient Occlusion },
-  author = {Neff, T. and Budge, B. and Dong, Z. and Schmalstieg, D. and Steinberger, M.},
+	booktitle = {High-Performance Graphics - Symposium Papers},
+	editor = {Bikker, Jacco and Gribble, Christiaan},
+	title = {{PSAO: Point-Based Split Rendering for Ambient Occlusion}},
+	author = {Neff, Thomas and Budge, Brian and Dong, Zhao and Schmalstieg, Dieter and Steinberger, Markus},
+	year = {2023},
+	publisher = {The Eurographics Association},
+	ISSN = {2079-8687},
+	ISBN = {978-3-03868-229-5},
+	DOI = {10.2312/hpg.20231131}
 }
 ```
 

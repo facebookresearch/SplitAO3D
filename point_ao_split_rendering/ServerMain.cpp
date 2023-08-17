@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
       .scan<'d', int>();
   args.add_argument("--minSamplesPerInstance")
       .help("minSamplesPerInstance")
-      .default_value(512)
+      .default_value(1024)
       .scan<'d', int>();
   args.add_argument("--width")
       .help("window/framebuffer width")
