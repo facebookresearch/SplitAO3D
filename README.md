@@ -1,3 +1,11 @@
+[//]: # "
+Copyright (c) Meta Platforms, Inc. and affiliates.
+All rights reserved.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+"
+
 # PSAO: Point-Based Split Rendering for Ambient Occlusion
  [Thomas Neff](https://thomasneff.github.io/)\*<sup>1</sup>,
  [Brian Budge](https://scholar.google.com/citations?user=z67HnEwAAAAJ&hl=en)<sup>2</sup>,

@@ -1,4 +1,11 @@
-// (c) Meta Platforms, Inc. and its affiliates
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 // Most of this code is a direct port of the nanoflann CPU kNN kd-Tree, and is thus not really optimal for GPU performance
 // It was mostly used early on to debug / test the image quality of the hash-based AO methods.
 #include "PointAOConstantsShared.slangh"

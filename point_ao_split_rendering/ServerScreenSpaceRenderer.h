@@ -1,5 +1,11 @@
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 
 // Based on
 // shared\third-party\Falcor\4.1\Falcor\Source\Samples\HelloDXR\HelloDXR.h

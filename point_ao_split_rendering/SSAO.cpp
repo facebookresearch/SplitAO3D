@@ -1,33 +1,14 @@
-/***************************************************************************
- # Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
- #
- # Redistribution and use in source and binary forms, with or without
- # modification, are permitted provided that the following conditions
- # are met:
- #  * Redistributions of source code must retain the above copyright
- #    notice, this list of conditions and the following disclaimer.
- #  * Redistributions in binary form must reproduce the above copyright
- #    notice, this list of conditions and the following disclaimer in the
- #    documentation and/or other materials provided with the distribution.
- #  * Neither the name of NVIDIA CORPORATION nor the names of its
- #    contributors may be used to endorse or promote products derived
- #    from this software without specific prior written permission.
- #
- # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- # PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- # CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- # PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- # OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- **************************************************************************/
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 #include "SSAO.h"
-#include "glm/gtc/random.hpp"
 #include "Utils/Math/FalcorMath.h"
+#include "glm/gtc/random.hpp"
 
 using namespace Falcor;
 
@@ -81,27 +62,27 @@ SSAO::SSAO(const Scene::SharedPtr& scene) : RenderPass(kInfo), scene_(scene) {
 
   auto typeConformances = scene_->getTypeConformances();
   auto defines = scene_->getSceneDefines();
-  //depthNormalsPrepass_ =
-  //    RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "vsMain", "main");
-  //depthNormalsPrepass_->getProgram()->setTypeConformances(typeConformances);
+  // depthNormalsPrepass_ =
+  //    RasterScenePass::create(scene_, "Samples/FalcorServer/DepthNormals.ps.slang", "vsMain",
+  //    "main");
+  // depthNormalsPrepass_->getProgram()->setTypeConformances(typeConformances);
   auto shaderModules = scene_->getShaderModules();
   Program::Desc depthNormalsProgDesc;
   depthNormalsProgDesc.addShaderModules(shaderModules);
   depthNormalsProgDesc.addShaderLibrary("Samples/FalcorServer/DepthNormals.ps.slang")
-    .vsEntry("vsMain")
-    .psEntry("main");
+      .vsEntry("vsMain")
+      .psEntry("main");
   depthNormalsProgDesc.addTypeConformances(typeConformances);
   depthNormalsPrepass_ = RasterScenePass::create(scene_, depthNormalsProgDesc, defines);
   depthNormalsPrepass_->getProgram()->setGenerateDebugInfoEnabled(true);
-  //auto depthDesc = DepthStencilState::Desc();
-  //depthDesc.setDepthFunc(DepthStencilState::Func::LessEqual);
-  //depthNormalsPrepass_->getState()->setDepthStencilState(DepthStencilState::create(depthDesc));
-
+  // auto depthDesc = DepthStencilState::Desc();
+  // depthDesc.setDepthFunc(DepthStencilState::Func::LessEqual);
+  // depthNormalsPrepass_->getState()->setDepthStencilState(DepthStencilState::create(depthDesc));
 
   computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
   computePass_->getProgram()->setGenerateDebugInfoEnabled(true);
-  //computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
-  //computePass_->getProgram()->setTypeConformances(typeConformances);
+  // computePass_ = ComputePass::create("Samples/FalcorServer/BlurPass.cs.slang");
+  // computePass_->getProgram()->setTypeConformances(typeConformances);
 }
 
 SSAO::SharedPtr
@@ -169,7 +150,7 @@ void SSAO::renderDepthNormalsPrepass(
   static constexpr const float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
   renderContext->clearFbo(targetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
   // Per-eye should already work here if the FBO has an attachment per eye.
-  //depthNormalsPrepass_->renderScene(renderContext, targetFbo, [&](EyeType eye) {});
+  // depthNormalsPrepass_->renderScene(renderContext, targetFbo, [&](EyeType eye) {});
   auto prepassVars = depthNormalsPrepass_->getVars();
   auto prepassCBuffer = prepassVars["perFrameConstantBuffer"];
   prepassCBuffer["isSecondPass"] = false;
@@ -206,51 +187,46 @@ void SSAO::init() {
   depthNormalsFbo_ = Fbo::create();
   blurredSSAOFbo_ = Fbo::create();
 
-  //for (EyeType eye : kAllEyes) {
-    texNormals_[0] = Texture::create2D(
-        width,
-        height,
-        ResourceFormat::RGBA8UnormSrgb,
-        1,
-        1,
-        nullptr,
-        Resource::BindFlags::ShaderResource | Resource::BindFlags::RenderTarget);
+  // for (EyeType eye : kAllEyes) {
+  texNormals_[0] = Texture::create2D(
+      width,
+      height,
+      ResourceFormat::RGBA8UnormSrgb,
+      1,
+      1,
+      nullptr,
+      Resource::BindFlags::ShaderResource | Resource::BindFlags::RenderTarget);
 
-    texDepth_[0] = Texture::create2D(
-        width,
-        height,
-        ResourceFormat::D32Float,
-        1,
-        1,
-        nullptr,
-        Resource::BindFlags::ShaderResource | Resource::BindFlags::DepthStencil);
+  texDepth_[0] = Texture::create2D(
+      width,
+      height,
+      ResourceFormat::D32Float,
+      1,
+      1,
+      nullptr,
+      Resource::BindFlags::ShaderResource | Resource::BindFlags::DepthStencil);
 
-    texBlurredAO_[0] = Texture::create2D(
-        width,
-        height,
-        ResourceFormat::R32Float,
-        1,
-        1,
-        nullptr,
-        Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource |
-            Resource::BindFlags::RenderTarget);
+  texBlurredAO_[0] = Texture::create2D(
+      width,
+      height,
+      ResourceFormat::R32Float,
+      1,
+      1,
+      nullptr,
+      Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource |
+          Resource::BindFlags::RenderTarget);
 
-    // Attach textures for each eye to FBO
-    depthNormalsFbo_->attachColorTarget(texNormals_[0], 0, 0, 0, Fbo::kAttachEntireMipLevel);
-    depthNormalsFbo_->attachDepthStencilTarget(
-        texDepth_[0], 0, 0, Fbo::kAttachEntireMipLevel);
-    blurredSSAOFbo_->attachColorTarget(
-        texBlurredAO_[0], 0, 0, 0, Fbo::kAttachEntireMipLevel);
+  // Attach textures for each eye to FBO
+  depthNormalsFbo_->attachColorTarget(texNormals_[0], 0, 0, 0, Fbo::kAttachEntireMipLevel);
+  depthNormalsFbo_->attachDepthStencilTarget(texDepth_[0], 0, 0, Fbo::kAttachEntireMipLevel);
+  blurredSSAOFbo_->attachColorTarget(texBlurredAO_[0], 0, 0, 0, Fbo::kAttachEntireMipLevel);
   //}
 
   setKernel();
   setNoiseTexture(noiseSize_.x, noiseSize_.y);
 }
 
-void SSAO::generateAOMap(
-    RenderContext* renderContext,
-    const Camera* camera,
-    uint32_t eye) {
+void SSAO::generateAOMap(RenderContext* renderContext, const Camera* camera, uint32_t eye) {
   if (isDirty_) {
     ShaderVar var = ssaoPass_["StaticCB"];
     if (var.isValid())

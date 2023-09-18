@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 # This CMakeLists.txt is based on apps\LEm\CMakeLists.txt
 
 # Use C++17 unless overridden by -DCMAKE_CXX_STANDARD on the command line
