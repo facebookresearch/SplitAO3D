@@ -1,10 +1,11 @@
-[//]: # "
+<!---
 Copyright (c) Meta Platforms, Inc. and affiliates.
 All rights reserved.
 
 This source code is licensed under the license found in the
 LICENSE file in the root directory of this source tree.
-"
+-->
+
 
 # PSAO: Point-Based Split Rendering for Ambient Occlusion
  [Thomas Neff](https://thomasneff.github.io/)\*<sup>1</sup>,
@@ -21,7 +22,7 @@ in High-Performance Graphics 2023
 <img src='psao_teaser.png'/>
 
 ### Licensing
-The majority of this project is licensed under Creative Commons Noncommercial 4.0, except for adapted third-party code, which is available under separate license terms:
+The majority of this project is licensed under CC BY-NC 4.0, except for third-party code, which is available under separate license terms:
 
 * Arcade test scene: NVIDIA CC-BY-NC-SA 3.0
 * [Poisson sampling](https://github.com/cemyuksel/cyCodeBase/blob/master/LICENSE) is licensed under the MIT license 
