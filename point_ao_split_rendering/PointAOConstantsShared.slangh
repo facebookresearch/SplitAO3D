@@ -1,0 +1,57 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+#pragma once
+#include "Utils/HostDeviceShared.slangh"
+
+BEGIN_NAMESPACE_FALCOR
+
+#define DISK_RADIUS_FACTOR 4.0f
+#define FIXED_HASH_BUCKET_SIZE 8
+// TODO: This could be replaced by a per-instance constant so we can have lower limits for mostly static objects
+#define FIXED_POINTS_PER_CELL 7
+#define COMPACT_HASH_INDEX_BITS 22
+#define COMPACT_HASH_INDEX_MASK 0x003FFFFF
+#define INVALID_CELL 0x80000000
+#define NUM_KNN_NEIGHBORS 16
+#define UNINITIALIZED_VALUE 42.0f
+#define CELL_DIRTY 0x80000000
+#define CELL_NOT_DIRTY 0
+// This increases or decreases the sizes of the hash tables
+#define HASH_LOG2_SIZE_FACTOR 2
+// This increases or decreases the size of the PointCell data structure that is preallocated
+#define NUM_CELLS_PREALLOCATION_FACTOR 4
+
+// Point Data constants
+// 1 bit valid/invalid
+// 5 + 5 + 5 bits position (quantized within grid cell)
+// 8 bits normal (oct-encoded)
+// 8 bits value (quantized)
+#define POINT_POS_BITS 5
+//#define POINT_POS_MAX ((1 << POINT_POS_BITS) - 1)
+#define POINT_POS_MAX 31
+//#define ONE_OVER_POINT_POS_MAX (1.0f / POINT_POS_MAX)
+#define ONE_OVER_POINT_POS_MAX 0.0322580645f
+#define NORMAL_BITS 8
+//#define NORMAL_MAX ((1 << NORMAL_BITS) - 1)
+#define NORMAL_MAX 255
+#define POINT_VAL_BITS 8
+//#define POINT_VAL_MAX ((1 << POINT_VAL_BITS) - 1)
+#define POINT_VAL_MAX 255
+//#define ONE_OVER_POINT_VAL_MAX (1.0f / POINT_VAL_MAX)
+#define ONE_OVER_POINT_VAL_MAX 0.0039215686f
+
+// Constants for AO Types
+#define AO_TYPE_PER_PIXEL_RTAO 0
+#define AO_TYPE_POINT_AO_KD_TREE 1
+#define AO_TYPE_POINT_AO_HASH 2
+#define AO_TYPE_POINT_AO_HASH_KNN 3
+#define AO_TYPE_POINT_AO_HASH_UPDATE 4
+#define AO_TYPE_SSAO 5
+
+END_NAMESPACE_FALCOR
