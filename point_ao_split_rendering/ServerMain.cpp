@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
   args.add_argument("--simulatedLatencyMSec")
       .help("simulatedLatencyMSec")
       .default_value(0.0f)
-      .scan<'f', float>();  
+      .scan<'f', float>();
   args.add_argument("--raytracingFramerate")
       .help("rt framerate")
       .default_value(60)
